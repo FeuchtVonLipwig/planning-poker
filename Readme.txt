@@ -90,7 +90,3 @@ npm install
 
 
 Restart frontend (npm run dev) and backend (node server.js).
-
-If you want, I can give you a step-by-step “ready-to-run” setup for your exact project so both frontend and backend work together from scratch, including sockets, room creation, and custom room codes — this will guarantee it works.
-
-Do you want me to do that?
