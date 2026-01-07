@@ -77,10 +77,10 @@ input::placeholder { color: #9aa3b2; }
   padding: 1rem;
   z-index: 1000;
 
-  /* FIX: make the panel's total width stable (includes padding/border) */
+  /* Keep width stable (includes padding/border) */
   box-sizing: border-box;
 
-  /* FIX: do not allow contents to widen the panel (prevents left panel growing) */
+  /* Do not allow contents to widen the panel */
   overflow: hidden;
 }
 .panel-left { left: 1rem; }
@@ -114,8 +114,15 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
-/* MIDDLE */
-.middle { margin: 170px auto 0; width: clamp(620px, 40vw, 980px); display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+/* MIDDLE (always centered in the viewport) */
+.middle {
+  margin: 170px auto 0;
+  width: clamp(620px, 40vw, 980px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
 
 /* STATUS */
 .status { width: 100%; padding: 1rem; }
@@ -168,8 +175,6 @@ input::placeholder { color: #9aa3b2; }
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
-
-  /* FIX: allow flex children to shrink instead of pushing the panel wider */
   min-width: 0;
 }
 .room-id-label,
@@ -183,8 +188,6 @@ input::placeholder { color: #9aa3b2; }
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 120px;
-
-  /* FIX: allow flex shrinking */
   min-width: 0;
 }
 .copy-btn {
@@ -205,8 +208,9 @@ input::placeholder { color: #9aa3b2; }
   color: #f5f7ff;
 }
 
-/* RESPONSIVE */
-@media (max-width: 1100px) {
+/* RESPONSIVE
+   One breakpoint: switch to stacked layout BEFORE panels collide */
+@media (max-width: 1650px) {
   .panel { position: static; width: min(92vw, 980px); margin: 0.5rem auto; }
   .middle { margin-top: 1rem; width: min(92vw, 980px); }
 }
