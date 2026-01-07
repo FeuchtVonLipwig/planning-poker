@@ -207,7 +207,7 @@ const closeSession = () => {
 }
 
 // --------------------
-// Clipboard (NEW)
+// Clipboard
 // --------------------
 const copyRoomId = async () => {
   if (!roomId.value) return
@@ -221,7 +221,6 @@ const copyRoomId = async () => {
       copiedTimer = null
     }, 1200)
   } catch {
-    // Fallback for some environments
     try {
       const ta = document.createElement('textarea')
       ta.value = roomId.value
@@ -259,8 +258,12 @@ const copyRoomId = async () => {
           <div class="card center-card">
             <h2>Enter your name</h2>
             <label class="label">Name</label>
-            <input v-model="userName" placeholder="Your name" />
-            <button class="btn" @click="acceptName">Continue</button>
+
+            <!-- ENTER submits -->
+            <form class="stack" @submit.prevent="acceptName">
+              <input v-model="userName" placeholder="Your name" />
+              <button class="btn" type="submit">Continue</button>
+            </form>
           </div>
         </div>
 
@@ -274,12 +277,12 @@ const copyRoomId = async () => {
               <span class="current-name-value">{{ userName }}</span>
             </div>
 
-            <button class="btn btn-ghost back-btn" @click="backFromSessionToName">
+            <button class="btn btn-ghost back-btn" @click="backFromSessionToName" type="button">
               ← Back to name
             </button>
 
-            <!-- Create -->
-            <div class="stack">
+            <!-- Create (ENTER submits) -->
+            <form class="stack" @submit.prevent="createRoom">
               <label class="label">Create a room</label>
               <input v-model="newRoomCode" placeholder="New room code" />
 
@@ -288,17 +291,17 @@ const copyRoomId = async () => {
                 <span>Public</span>
               </label>
 
-              <button class="btn" @click="createRoom">Create Room</button>
-            </div>
+              <button class="btn" type="submit">Create Room</button>
+            </form>
 
             <div class="divider"></div>
 
-            <!-- Join -->
-            <div class="stack">
+            <!-- Join (ENTER submits) -->
+            <form class="stack" @submit.prevent="joinRoom()">
               <label class="label">Join a room</label>
               <input v-model="roomId" placeholder="Existing room code" />
-              <button class="btn" @click="joinRoom()">Join Room</button>
-            </div>
+              <button class="btn" type="submit">Join Room</button>
+            </form>
 
             <!-- Public rooms list -->
             <div class="public-rooms">
@@ -330,12 +333,17 @@ const copyRoomId = async () => {
         <div v-if="step === 3">
           <!-- LEFT PANEL -->
           <div class="panel panel-left">
-            <!-- Room ID row with copy button (NEW) -->
+            <!-- Room ID row with copy button -->
             <div class="room-id-row">
               <p class="room-id-label"><strong>Room ID:</strong></p>
               <p class="room-id-value">{{ roomId }}</p>
 
-              <button class="copy-btn" @click="copyRoomId" :title="copied ? 'Copied!' : 'Copy room id'">
+              <button
+                class="copy-btn"
+                @click="copyRoomId"
+                type="button"
+                :title="copied ? 'Copied!' : 'Copy room id'"
+              >
                 <span v-if="!copied">📋</span>
                 <span v-else>✓</span>
               </button>
@@ -348,7 +356,7 @@ const copyRoomId = async () => {
               <span>Spectator</span>
             </label>
 
-            <button class="btn btn-ghost" @click="closeSession">Close Session</button>
+            <button class="btn btn-ghost" @click="closeSession" type="button">Close Session</button>
           </div>
 
           <!-- RIGHT PANEL -->
@@ -406,14 +414,15 @@ const copyRoomId = async () => {
                 :class="{ selected: selectedCard === c }"
                 :disabled="isSpectator"
                 @click="voteCard(c)"
+                type="button"
               >
                 {{ c }}
               </button>
             </div>
 
             <div class="buttons">
-              <button class="btn" @click="revealVotes">Reveal Votes</button>
-              <button class="btn btn-ghost" @click="resetVotes">Reset</button>
+              <button class="btn" @click="revealVotes" type="button">Reveal Votes</button>
+              <button class="btn btn-ghost" @click="resetVotes" type="button">Reset</button>
             </div>
 
             <div v-if="revealed" class="card votes-card">
@@ -580,21 +589,17 @@ input::placeholder { color: #9aa3b2; }
 .avg-symbol { font-weight: 900; color: #cbd3e6; }
 .avg-number { font-weight: 900; color: #f5f7ff; }
 
-/* -------------------- */
-/* NEW: Room ID copy row */
-/* -------------------- */
+/* Room ID copy row */
 .room-id-row {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
 }
-
 .room-id-label,
 .room-id-value {
   margin: 0;
 }
-
 .room-id-value {
   font-weight: 900;
   color: #f5f7ff;
@@ -603,7 +608,6 @@ input::placeholder { color: #9aa3b2; }
   white-space: nowrap;
   max-width: 120px;
 }
-
 .copy-btn {
   margin-left: auto;
   display: inline-flex;
@@ -617,7 +621,6 @@ input::placeholder { color: #9aa3b2; }
   color: #cbd3e6;
   cursor: pointer;
 }
-
 .copy-btn:hover {
   background: rgba(255,255,255,0.06);
   color: #f5f7ff;
