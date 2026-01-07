@@ -70,7 +70,19 @@ input::placeholder { color: #9aa3b2; }
 .public-users { font-weight: 800; color: #cbd3e6; }
 
 /* PANELS */
-.panel { position: fixed; top: 1rem; width: 240px; padding: 1rem; z-index: 1000; }
+.panel {
+  position: fixed;
+  top: 1rem;
+  width: 240px;
+  padding: 1rem;
+  z-index: 1000;
+
+  /* FIX: make the panel's total width stable (includes padding/border) */
+  box-sizing: border-box;
+
+  /* FIX: do not allow contents to widen the panel (prevents left panel growing) */
+  overflow: hidden;
+}
 .panel-left { left: 1rem; }
 .panel-right { right: 1rem; }
 
@@ -156,6 +168,9 @@ input::placeholder { color: #9aa3b2; }
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
+
+  /* FIX: allow flex children to shrink instead of pushing the panel wider */
+  min-width: 0;
 }
 .room-id-label,
 .room-id-value {
@@ -168,6 +183,9 @@ input::placeholder { color: #9aa3b2; }
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 120px;
+
+  /* FIX: allow flex shrinking */
+  min-width: 0;
 }
 .copy-btn {
   margin-left: auto;
