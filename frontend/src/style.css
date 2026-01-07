@@ -1,3 +1,12 @@
+/* =========================================================
+   GLOBAL RESET & BASE
+   ========================================================= */
+
+/* Make widths include padding & borders (CRITICAL FIX) */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 /* Global dark background for entire page */
 html, body {
   margin: 0;
@@ -8,194 +17,314 @@ html, body {
   color: #f5f7ff;
 }
 
-/* Remove default body width quirks / horizontal scroll */
+/* Prevent accidental horizontal scrolling */
 body {
   overflow-x: hidden;
 }
 
-.page { min-height: 100vh; background: #0f1115; color: #f5f7ff; }
-.app-header { width: 100vw; display: flex; justify-content: center; align-items: center; padding: 1.6rem 0 1.2rem; margin-left: calc(50% - 50vw); }
-.app-header h1 { font-size: 2.8rem; margin: 0; }
+/* =========================================================
+   APP LAYOUT
+   ========================================================= */
 
-.container { padding: 0 1.25rem; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-.content { width: 100%; display: flex; flex-direction: column; align-items: center; }
-.stage { width: 100%; display: flex; justify-content: center; margin-top: 1rem; }
+.page {
+  min-height: 100vh;
+  background: #0f1115;
+  color: #f5f7ff;
+}
 
-.card, .panel { background: #161a22; border: 1px solid #2a3142; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.35); }
-.center-card { width: min(560px, 92vw); padding: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 0.9rem; }
-.stack { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
-
-.current-name { width: 100%; padding: 0.55rem 0.7rem; border-radius: 12px; border: 1px solid rgba(42,49,66,0.9); background: rgba(15,17,21,0.35); display: flex; justify-content: center; align-items: baseline; gap: 0.45rem; }
-.current-name-label { color: #cbd3e6; font-weight: 800; }
-.current-name-value { color: #f5f7ff; font-weight: 900; }
-
-.back-btn { width: 100%; margin-top: -0.1rem; margin-bottom: 0.4rem; display: flex; justify-content: center; }
-
-input { padding: 0.6rem 0.75rem; width: 320px; max-width: 82vw; border-radius: 10px; border: 1px solid #2a3142; background: #0f1115; color: #f5f7ff; }
-input::placeholder { color: #9aa3b2; }
-
-.label { color: #cbd3e6; font-weight: 700; }
-
-.btn { padding: 0.65rem 1rem; border-radius: 10px; border: 1px solid #2a3142; background: #2b68ff; color: #fff; font-weight: 700; cursor: pointer; }
-.btn-ghost { background: transparent; }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; }
-
-.divider { width: 100%; height: 1px; background: #2a3142; margin: 0.75rem 0; }
-
-/* Check rows */
-.check-row {
+.app-header {
+  width: 100vw;
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 0.55rem;
+  padding: 1.6rem 0 1.2rem;
+  margin-left: calc(50% - 50vw); /* true viewport centering */
+}
+
+.app-header h1 {
+  font-size: 2.8rem;
+  margin: 0;
+}
+
+/* Main content wrapper */
+.container {
+  padding: 0 1.25rem;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Used for name / session selection screens */
+.stage {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+/* =========================================================
+   CARDS / PANELS (DESIGN SYSTEM)
+   ========================================================= */
+
+.card,
+.panel {
+  background: #161a22;
+  border: 1px solid #2a3142;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+}
+
+.center-card {
+  width: min(560px, 92vw);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* =========================================================
+   TYPOGRAPHY & INPUTS
+   ========================================================= */
+
+.label {
   color: #cbd3e6;
-  font-weight: 800;
+  font-weight: 700;
+}
+
+input {
+  padding: 0.6rem 0.75rem;
   width: 320px;
   max-width: 82vw;
-  justify-content: flex-start;
-}
-.check-row input {
-  width: auto;
-  max-width: none;
-  accent-color: #2b68ff;
+  border-radius: 10px;
+  border: 1px solid #2a3142;
+  background: #0f1115;
+  color: #f5f7ff;
 }
 
-/* Public rooms list */
-.public-rooms { width: 100%; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #2a3142; }
-.public-rooms-title { width: 100%; text-align: left; color: #cbd3e6; font-weight: 900; margin-bottom: 0.5rem; }
-.public-empty { width: 100%; text-align: left; color: #9aa3b2; font-weight: 700; padding: 0.5rem 0.2rem; }
-.public-list { list-style: none; padding: 0; margin: 0; width: 100%; display: flex; flex-direction: column; gap: 0.45rem; }
-.public-item { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid rgba(42,49,66,0.9); background: rgba(15,17,21,0.35); cursor: pointer; }
-.public-item:hover { background: rgba(255,255,255,0.06); }
-.public-room-id { font-weight: 900; color: #f5f7ff; }
-.public-users { font-weight: 800; color: #cbd3e6; }
+input::placeholder {
+  color: #9aa3b2;
+}
 
-/* PANELS */
-.panel { position: fixed; top: 1rem; width: 240px; padding: 1rem; z-index: 1000; }
-.panel-left { left: 1rem; }
-.panel-right { right: 1rem; }
+/* =========================================================
+   BUTTONS
+   ========================================================= */
 
-.spectator-row { margin: 0.4rem 0 0.6rem; display: flex; align-items: center; gap: 0.55rem; color: #cbd3e6; font-weight: 800; }
-.spectator-row input { width: auto; max-width: none; accent-color: #2b68ff; }
+.btn {
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #2a3142;
+  background: #2b68ff;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
 
-/* Participants panel */
-.panel-title { margin: 0; font-size: 1.05rem; font-weight: 900; color: #f5f7ff; }
-.panel-list { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.45rem; }
-.panel-list-item { display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0.45rem; border-radius: 10px; border: 1px solid rgba(42,49,66,0.8); background: rgba(15,17,21,0.35); }
-.dot { width: 8px; height: 8px; border-radius: 999px; background: rgba(43,104,255,0.9); box-shadow: 0 0 0 3px rgba(43,104,255,0.15); flex: 0 0 auto; }
-.dot.spect { background: rgba(148,163,184,0.95); box-shadow: 0 0 0 3px rgba(148,163,184,0.18); }
-.panel-name { font-weight: 800; color: #f5f7ff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+.btn-ghost {
+  background: transparent;
+}
 
-.badge {
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   SESSION / ROOM SELECTION
+   ========================================================= */
+
+.current-name {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
   border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(148,163,184,0.12);
-  color: #cbd3e6;
-  flex: 0 0 auto;
-}
-.badge-cheater {
-  border-color: rgba(239,68,68,0.55);
-  background: rgba(239,68,68,0.14);
-  color: #fecaca;
+  background: rgba(15,17,21,0.35);
+  display: flex;
+  justify-content: center;
+  gap: 0.45rem;
 }
 
-/* MIDDLE - responsive to available space between fixed side panels */
+.current-name-label {
+  color: #cbd3e6;
+  font-weight: 800;
+}
+
+.current-name-value {
+  color: #f5f7ff;
+  font-weight: 900;
+}
+
+.back-btn {
+  width: 100%;
+  margin: 0.3rem 0 0.6rem;
+  display: flex;
+  justify-content: center;
+}
+
+.divider {
+  width: 100%;
+  height: 1px;
+  background: #2a3142;
+  margin: 0.75rem 0;
+}
+
+/* =========================================================
+   PUBLIC ROOMS
+   ========================================================= */
+
+.public-rooms {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2a3142;
+}
+
+.public-rooms-title {
+  font-weight: 900;
+  color: #cbd3e6;
+  margin-bottom: 0.5rem;
+}
+
+.public-empty {
+  color: #9aa3b2;
+  font-weight: 700;
+}
+
+.public-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.public-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(42,49,66,0.9);
+  background: rgba(15,17,21,0.35);
+  cursor: pointer;
+}
+
+.public-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+/* =========================================================
+   FIXED PANELS (LEFT / RIGHT)
+   ========================================================= */
+
+.panel {
+  position: fixed;
+  top: 1rem;
+  width: 240px;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.panel-left {
+  left: 1rem;
+}
+
+.panel-right {
+  right: 1rem;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.panel-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+/* =========================================================
+   CENTER (ESTIMATION AREA)
+   ========================================================= */
+
 .middle {
   margin: 170px auto 0;
-  width: min(980px, calc(100vw - 2 * (240px + 2rem)));
+  width: min(980px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
 }
 
-/* STATUS */
-.status { width: 100%; padding: 1rem; }
-.status-row { display: flex; justify-content: space-between; margin-bottom: 0.75rem; }
-.status-title, .status-count { font-weight: 900; }
-.status-count { color: #cbd3e6; }
-.status-subtitle { font-weight: 800; color: #cbd3e6; margin-bottom: 0.4rem; }
-.status-empty { font-weight: 700; color: #cbd3e6; }
-.status-ok { color: #a7f3d0; }
-.status-hint { margin-top: 0.8rem; color: #9aa3b2; font-weight: 700; }
-
-/* CHIPS */
-.chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.chip { padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid #2a3142; font-weight: 700; }
-.chip-voted { background: rgba(34,197,94,0.15); color: #bbf7d0; }
-.chip-waiting { background: rgba(239,68,68,0.15); color: #fecaca; }
-
-/* VOTING */
-.cards { display: flex; gap: 0.85rem; flex-wrap: wrap; justify-content: center; }
-.card-btn { min-width: 72px; padding: 0.85rem 1.05rem; border-radius: 12px; border: 1px solid #2a3142; background: #161a22; color: #fff; font-weight: 900; cursor: pointer; }
-.card-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.card-btn.selected { border-color: #2b68ff; box-shadow: 0 0 0 3px rgba(43,104,255,0.25); }
-.buttons { display: flex; gap: 0.75rem; }
-
-/* Votes list */
-.votes-card { width: 100%; padding: 1rem; }
-.vote-list { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.45rem; }
-.vote-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.7rem; border-radius: 10px; border: 1px solid rgba(42,49,66,0.9); background: rgba(15,17,21,0.35); }
-.vote-name { font-weight: 800; color: #f5f7ff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.5rem; }
-.inline-cheater {
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  padding: 0.16rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid rgba(239,68,68,0.55);
-  background: rgba(239,68,68,0.14);
-  color: #fecaca;
+/* Reserve space for fixed panels on wide screens */
+@media (min-width: 1351px) {
+  .content {
+    padding-left: calc(240px + 3rem);
+    padding-right: calc(240px + 3rem);
+  }
 }
-.vote-value { font-weight: 900; color: #f5f7ff; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid rgba(42,49,66,0.9); background: rgba(22,26,34,0.8); flex: 0 0 auto; }
 
-/* Ø average aligned left */
-.avg-left { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid #2a3142; width: 100%; display: flex; justify-content: flex-start; align-items: baseline; gap: 0.6rem; }
-.avg-symbol { font-weight: 900; color: #cbd3e6; }
-.avg-number { font-weight: 900; color: #f5f7ff; }
+/* =========================================================
+   STATUS / CHIPS / VOTING
+   ========================================================= */
 
-/* Room ID copy row */
-.room-id-row {
+.chips {
   display: flex;
-  align-items: baseline;
   gap: 0.5rem;
-  margin-bottom: 0.25rem;
-}
-.room-id-label,
-.room-id-value {
-  margin: 0;
-}
-.room-id-value {
-  font-weight: 900;
-  color: #f5f7ff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 120px;
-}
-.copy-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.35);
-  color: #cbd3e6;
-  cursor: pointer;
-}
-.copy-btn:hover {
-  background: rgba(255,255,255,0.06);
-  color: #f5f7ff;
+  flex-wrap: wrap;
 }
 
-/* RESPONSIVE */
-@media (max-width: 1100px) {
-  .panel { position: static; width: min(92vw, 980px); margin: 0.5rem auto; }
-  .middle { margin-top: 1rem; width: min(92vw, 980px); }
+.chip {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid #2a3142;
+  font-weight: 700;
+}
+
+.cards {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* =========================================================
+   RESPONSIVE STACKING
+   ========================================================= */
+
+@media (max-width: 1350px) {
+  .panel {
+    position: static;
+    width: min(92vw, 980px);
+    margin: 0.5rem auto;
+  }
+
+  .content {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .middle {
+    margin-top: 1rem;
+    width: min(92vw, 980px);
+  }
 }
