@@ -17,24 +17,8 @@ body {
 .app-header { width: 100vw; display: flex; justify-content: center; align-items: center; padding: 1.6rem 0 1.2rem; margin-left: calc(50% - 50vw); }
 .app-header h1 { font-size: 2.8rem; margin: 0; }
 
-/* UPDATED: make this a centered layout wrapper */
-.container {
-  padding: 0 1.25rem;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* UPDATED: keep content centered inside the wrapper */
-.content {
-  width: 100%;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
+.container { padding: 0 1.25rem; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+.content { width: 100%; display: flex; flex-direction: column; align-items: center; }
 .stage { width: 100%; display: flex; justify-content: center; margin-top: 1rem; }
 
 .card, .panel { background: #161a22; border: 1px solid #2a3142; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.35); }
@@ -86,15 +70,7 @@ input::placeholder { color: #9aa3b2; }
 .public-users { font-weight: 800; color: #cbd3e6; }
 
 /* PANELS */
-.panel {
-  position: fixed;
-  top: 1rem;
-  width: 240px;
-  padding: 1rem;
-  z-index: 1000;
-  box-sizing: border-box;
-  overflow: hidden;
-}
+.panel { position: fixed; top: 1rem; width: 240px; padding: 1rem; z-index: 1000; }
 .panel-left { left: 1rem; }
 .panel-right { right: 1rem; }
 
@@ -127,14 +103,7 @@ input::placeholder { color: #9aa3b2; }
 }
 
 /* MIDDLE */
-.middle {
-  margin: 170px auto 0;
-  width: clamp(620px, 40vw, 980px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
+.middle { margin: 170px auto 0; width: clamp(620px, 40vw, 980px); display: flex; flex-direction: column; align-items: center; gap: 1rem; }
 
 /* STATUS */
 .status { width: 100%; padding: 1rem; }
@@ -187,7 +156,6 @@ input::placeholder { color: #9aa3b2; }
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
-  min-width: 0;
 }
 .room-id-label,
 .room-id-value {
@@ -200,7 +168,6 @@ input::placeholder { color: #9aa3b2; }
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 120px;
-  min-width: 0;
 }
 .copy-btn {
   margin-left: auto;
@@ -221,7 +188,7 @@ input::placeholder { color: #9aa3b2; }
 }
 
 /* RESPONSIVE */
-@media (max-width: 1650px) {
+@media (max-width: 1100px) {
   .panel { position: static; width: min(92vw, 980px); margin: 0.5rem auto; }
   .middle { margin-top: 1rem; width: min(92vw, 980px); }
 }
