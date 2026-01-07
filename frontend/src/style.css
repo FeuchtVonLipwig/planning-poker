@@ -102,8 +102,15 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
-/* MIDDLE */
-.middle { margin: 170px auto 0; width: clamp(620px, 40vw, 980px); display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+/* MIDDLE - responsive to available space between fixed side panels */
+.middle {
+  margin: 170px auto 0;
+  width: min(980px, calc(100vw - 2 * (240px + 2rem)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
 
 /* STATUS */
 .status { width: 100%; padding: 1rem; }
