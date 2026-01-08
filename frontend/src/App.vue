@@ -120,9 +120,12 @@ const voteCountText = computed(() =>
   `${voted.value.length}/${activeParticipants.value.length} voted`
 )
 
-// ✅ NEW: button enable/disable logic
-const canReveal = computed(() => Object.keys(activeVotesMap.value || {}).length > 0)
-const canReset = computed(() => revealed.value === true)
+// ✅ NEW RULES:
+// - Reveal enabled only if at least 1 vote AND not revealed
+// - Reset enabled if at least 1 vote (even if not revealed)
+const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length > 0)
+const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
+const canReset = computed(() => hasAnyVote.value)
 
 // Sort votes highest first; non-numeric at bottom
 const sortedVotes = computed(() => {
