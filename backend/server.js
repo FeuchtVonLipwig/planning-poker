@@ -56,7 +56,8 @@ io.on("connection", (socket) => {
   });
 
   // --- Create Room ---
-  socket.on("create-room", ({ roomCode, name, isPublic }) => {
+  // CHANGED: expects { isPrivate } and public is default
+  socket.on("create-room", ({ roomCode, name, isPrivate }) => {
     const roomId = roomCode || Math.random().toString(36).substring(2, 8);
 
     if (rooms[roomId]) {
@@ -68,8 +69,8 @@ io.on("connection", (socket) => {
       users: [],
       votes: {},
       revealed: false,
-      public: !!isPublic,
-      cheaters: {} // NEW
+      public: !isPrivate, // CHANGED
+      cheaters: {}
     };
 
     // auto-join creator
@@ -132,7 +133,7 @@ io.on("connection", (socket) => {
 
     const previous = room.votes[socket.id];
 
-    // NEW: if revealed and someone CHANGES an existing vote => cheater
+    // if revealed and someone CHANGES an existing vote => cheater
     if (room.revealed === true && previous !== undefined && previous !== value) {
       room.cheaters[socket.id] = true;
     }
@@ -162,7 +163,7 @@ io.on("connection", (socket) => {
     rooms[roomId].votes = {};
     rooms[roomId].revealed = false;
 
-    // NEW: reset cheaters on reset
+    // reset cheaters on reset
     rooms[roomId].cheaters = {};
 
     io.to(roomId).emit("reset");

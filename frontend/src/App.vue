@@ -19,8 +19,8 @@ const revealed = ref(false)
 
 const isSpectator = ref(false)
 
-// Public rooms
-const createPublic = ref(false)
+// Rooms (CHANGED: clean private checkbox)
+const isPrivate = ref(false) // default = PUBLIC
 type PublicRoom = { roomId: string; users: number }
 const publicRooms = ref<PublicRoom[]>([])
 
@@ -164,7 +164,7 @@ const createRoom = () => {
   socket.emit("create-room", {
     roomCode: newRoomCode.value,
     name: userName.value,
-    isPublic: createPublic.value
+    isPrivate: isPrivate.value
   })
 }
 
@@ -285,9 +285,10 @@ const copyRoomId = async () => {
               <label class="label">Create a room</label>
               <input v-model="newRoomCode" placeholder="New room code" />
 
+              <!-- CHANGED: Public is default, checkbox is Private -->
               <label class="check-row">
-                <input type="checkbox" v-model="createPublic" />
-                <span>Public</span>
+                <input type="checkbox" v-model="isPrivate" />
+                <span>Private</span>
               </label>
 
               <button class="btn" type="submit">Create Room</button>
