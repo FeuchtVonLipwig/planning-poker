@@ -2,64 +2,144 @@
 import { ref, computed, onMounted } from 'vue'
 import { socket } from './socket'
 
+type Participant = { id: string; name: string; spectator?: boolean }
+
 // --- State ---
-const step = ref(1) // 1 = name, 2 = room selection, 3 = session
+const step = ref(1) // 1=name, 2=room select, 3=session
+const userName = ref('')
 const roomId = ref('')
 const newRoomCode = ref('')
-const userName = ref('')
-const participants = ref<{ id: string; name: string }[]>([])
+const createPublic = ref(false)
+
+const participants = ref<Participant[]>([])
+const spectatorMe = ref(false)
+
 const selectedCard = ref<string | null>(null)
 const votes = ref<Record<string, string>>({})
 const revealed = ref(false)
 
-// optional: if you already have public rooms list in your UI, keep it
+// public room list
 const publicRooms = ref<{ roomId: string; usersCount: number }[]>([])
 
-// If user opened /room/<id>, we store it here
+// URL join
 const roomFromUrl = ref<string | null>(null)
 
-// Full room URL to copy
+// cheater tracking (vote changed after reveal)
+const cheaters = ref<Set<string>>(new Set())
+const votesSnapshotAtReveal = ref<Record<string, string>>({})
+
+// ---------- Helpers ----------
+function parseRoomFromUrl(): string | null {
+  const path = window.location.pathname || '/'
+  const match = path.match(/^\/room\/([^/]+)\/?$/)
+  if (!match || !match[1]) return null
+  return decodeURIComponent(match[1])
+}
+
+function setUrlToRoom(id: string) {
+  const next = `/room/${encodeURIComponent(id)}`
+  if (window.location.pathname !== next) window.history.pushState({}, '', next)
+}
+
+function setUrlHome() {
+  if (window.location.pathname !== '/') window.history.pushState({}, '', '/')
+}
+
 const roomUrl = computed(() => {
   if (!roomId.value) return ''
   return `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
 })
 
-function setUrlToRoom(id: string) {
-  const next = `/room/${encodeURIComponent(id)}`
-  if (window.location.pathname !== next) {
-    window.history.pushState({}, '', next)
-  }
+function nameOf(id: string) {
+  return participants.value.find(p => p.id === id)?.name || id
 }
 
-function setUrlHome() {
-  if (window.location.pathname !== '/') {
-    window.history.pushState({}, '', '/')
-  }
+function isSpectator(id: string) {
+  return !!participants.value.find(p => p.id === id)?.spectator
 }
 
-// --- WebSocket events ---
+// Participants who should vote = not spectators
+const voters = computed(() => participants.value.filter(p => !p.spectator))
+
+const waitingFor = computed(() => {
+  const votedIds = new Set(Object.keys(votes.value))
+  return voters.value.filter(p => !votedIds.has(p.id))
+})
+
+const everyoneVoted = computed(() => waitingFor.value.length === 0 && voters.value.length > 0)
+
+function parseNumeric(v: string): number | null {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+const revealedVotesSorted = computed(() => {
+  const rows = Object.entries(votes.value).map(([id, v]) => {
+    const num = parseNumeric(v)
+    return { id, name: nameOf(id), value: v, num }
+  })
+
+  // Highest first: numeric desc, then non-numeric last
+  rows.sort((a, b) => {
+    const an = a.num
+    const bn = b.num
+    if (an === null && bn === null) return 0
+    if (an === null) return 1
+    if (bn === null) return -1
+    return bn - an
+  })
+
+  return rows
+})
+
+const averageNumeric = computed(() => {
+  // Only count numeric votes from non-spectators
+  const nums: number[] = []
+  for (const [id, v] of Object.entries(votes.value)) {
+    if (isSpectator(id)) continue
+    const n = parseNumeric(v)
+    if (n !== null) nums.push(n)
+  }
+  if (nums.length === 0) return null
+  const sum = nums.reduce((a, b) => a + b, 0)
+  return Math.round((sum / nums.length) * 100) / 100
+})
+
+// ---------- Socket events ----------
 socket.on('room-created', (id: string) => {
   roomId.value = id
   step.value = 3
   setUrlToRoom(id)
 })
 
-socket.on('users-updated', (users: any[]) => {
+socket.on('users-updated', (users: Participant[]) => {
   participants.value = users
 })
 
-socket.on('votes-updated', (v) => {
+socket.on('votes-updated', (v: Record<string, string>) => {
+  // Cheater detection: if revealed and a vote changed compared to snapshot
+  if (revealed.value) {
+    for (const [id, value] of Object.entries(v)) {
+      const before = votesSnapshotAtReveal.value[id]
+      if (before !== undefined && before !== value) {
+        cheaters.value.add(id)
+      }
+    }
+  }
   votes.value = v
 })
 
 socket.on('revealed', () => {
   revealed.value = true
+  votesSnapshotAtReveal.value = { ...votes.value }
 })
 
 socket.on('reset', () => {
   votes.value = {}
   revealed.value = false
   selectedCard.value = null
+  cheaters.value = new Set()
+  votesSnapshotAtReveal.value = {}
 })
 
 socket.on('public-rooms-updated', (rooms: any[]) => {
@@ -70,24 +150,14 @@ socket.on('error', (msg: string) => {
   alert(msg)
 })
 
-// --- URL parsing ---
-function parseRoomFromUrl(): string | null {
-  const path = window.location.pathname || '/'
-  const match = path.match(/^\/room\/([^/]+)\/?$/)
-
-  if (!match || !match[1]) return null
-
-  return decodeURIComponent(match[1])
-}
-
+// ---------- Lifecycle ----------
 onMounted(() => {
   const id = parseRoomFromUrl()
   if (id) {
     roomFromUrl.value = id
-    roomId.value = id // show it if you ever go back to step 2
+    roomId.value = id
   }
 
-  // Handle browser back/forward
   window.addEventListener('popstate', () => {
     const newId = parseRoomFromUrl()
     roomFromUrl.value = newId
@@ -95,11 +165,11 @@ onMounted(() => {
   })
 })
 
-// --- Actions ---
+// ---------- Actions ----------
 const acceptName = () => {
   if (!userName.value.trim()) return alert('Please enter your name')
 
-  // If user opened a room URL, go directly into that session (join or create-private)
+  // If opened via /room/<id>, jump straight into that session (join or create private)
   if (roomFromUrl.value) {
     joinRoomById(roomFromUrl.value)
     step.value = 3
@@ -111,15 +181,15 @@ const acceptName = () => {
 
 function joinRoomById(id: string) {
   roomId.value = id
+  spectatorMe.value = false
   socket.emit('join-room', { roomId: id, name: userName.value })
   setUrlToRoom(id)
 }
 
 const createRoom = () => {
   if (!newRoomCode.value) return alert('Enter a room code to create')
-
-  // NOTE: server will auto-join creator if we pass name
-  socket.emit('create-room', { roomCode: newRoomCode.value, name: userName.value, public: false })
+  spectatorMe.value = false
+  socket.emit('create-room', { roomCode: newRoomCode.value, name: userName.value, public: createPublic.value })
 }
 
 const joinRoom = () => {
@@ -146,16 +216,20 @@ const resetVotes = () => {
 }
 
 const closeSession = () => {
-  // go back to room selection (step 2) but keep name
+  // Back to room selection, keep name
   step.value = 2
   roomId.value = ''
   newRoomCode.value = ''
+  createPublic.value = false
+
   participants.value = []
   votes.value = {}
   selectedCard.value = null
   revealed.value = false
+  cheaters.value = new Set()
+  votesSnapshotAtReveal.value = {}
 
-  // leaving session URL
+  spectatorMe.value = false
   roomFromUrl.value = null
   setUrlHome()
 }
@@ -164,13 +238,25 @@ const backToName = () => {
   step.value = 1
   roomId.value = ''
   newRoomCode.value = ''
+  createPublic.value = false
+
   participants.value = []
   votes.value = {}
   selectedCard.value = null
   revealed.value = false
+  cheaters.value = new Set()
+  votesSnapshotAtReveal.value = {}
 
+  spectatorMe.value = false
   roomFromUrl.value = null
   setUrlHome()
+}
+
+const toggleSpectator = () => {
+  if (!roomId.value) return
+  socket.emit('set-spectator', { roomId: roomId.value, spectator: spectatorMe.value })
+  // when switching to spectator, also clear selected card locally (optional but sensible)
+  if (spectatorMe.value) selectedCard.value = null
 }
 
 const copyRoomUrl = async () => {
@@ -179,7 +265,6 @@ const copyRoomUrl = async () => {
     await navigator.clipboard.writeText(roomUrl.value)
     alert('Room link copied!')
   } catch {
-    // fallback
     const tmp = document.createElement('textarea')
     tmp.value = roomUrl.value
     document.body.appendChild(tmp)
@@ -200,16 +285,12 @@ const copyRoomUrl = async () => {
     <div class="container">
       <div class="content">
 
-        <!-- Screen 1: Name -->
+        <!-- Screen 1 -->
         <div v-if="step === 1" class="stage">
           <div class="card center-card">
             <div class="stack">
               <div class="label">Enter your name</div>
-              <input
-                v-model="userName"
-                placeholder="Your name"
-                @keydown.enter.prevent="acceptName"
-              />
+              <input v-model="userName" placeholder="Your name" @keydown.enter.prevent="acceptName" />
               <button class="btn" @click="acceptName">Continue</button>
 
               <div v-if="roomFromUrl" class="status-hint">
@@ -219,10 +300,11 @@ const copyRoomUrl = async () => {
           </div>
         </div>
 
-        <!-- Screen 2: Room selection -->
+        <!-- Screen 2 -->
         <div v-if="step === 2" class="stage">
           <div class="card center-card">
             <div class="stack">
+
               <div class="current-name">
                 <span class="current-name-label">Current name:</span>
                 <span class="current-name-value">{{ userName }}</span>
@@ -234,29 +316,29 @@ const copyRoomUrl = async () => {
 
               <div class="divider"></div>
 
+              <!-- Create -->
               <div class="stack">
                 <div class="label">Create a room</div>
-                <input
-                  v-model="newRoomCode"
-                  placeholder="New room code"
-                  @keydown.enter.prevent="createRoom"
-                />
+                <input v-model="newRoomCode" placeholder="New room code" @keydown.enter.prevent="createRoom" />
+
+                <label class="check-row">
+                  <input type="checkbox" v-model="createPublic" />
+                  public
+                </label>
+
                 <button class="btn" @click="createRoom">Create Room</button>
               </div>
 
               <div class="divider"></div>
 
+              <!-- Join -->
               <div class="stack">
                 <div class="label">Join a room</div>
-                <input
-                  v-model="roomId"
-                  placeholder="Existing room code"
-                  @keydown.enter.prevent="joinRoom"
-                />
+                <input v-model="roomId" placeholder="Existing room code" @keydown.enter.prevent="joinRoom" />
                 <button class="btn" @click="joinRoom">Join Room</button>
               </div>
 
-              <!-- If you already show public rooms, you can keep using publicRooms here -->
+              <!-- Public rooms -->
               <div class="public-rooms">
                 <div class="public-rooms-title">Public rooms</div>
 
@@ -281,46 +363,77 @@ const copyRoomUrl = async () => {
           </div>
         </div>
 
-        <!-- Screen 3: Session -->
+        <!-- Screen 3 -->
         <div v-if="step === 3">
-          <!-- Top-left panel -->
+          <!-- Left panel -->
           <div class="panel panel-left">
             <div class="panel-title">Session</div>
 
             <div class="room-id-row">
               <p class="room-id-label"><strong>Room:</strong></p>
               <p class="room-id-value">{{ roomId }}</p>
-
-              <!-- Copy ROOM URL -->
-              <button class="copy-btn" @click="copyRoomUrl" title="Copy room link">
-                📋
-              </button>
+              <button class="copy-btn" @click="copyRoomUrl" title="Copy room link">📋</button>
             </div>
 
             <p><strong>You:</strong> {{ userName }}</p>
 
+            <label class="spectator-row">
+              <input type="checkbox" v-model="spectatorMe" @change="toggleSpectator" />
+              spectator
+            </label>
+
             <button class="btn btn-ghost" @click="closeSession">Close Session</button>
           </div>
 
-          <!-- Top-right panel -->
+          <!-- Right panel -->
           <div class="panel panel-right">
             <div class="panel-title">Participants</div>
             <ul class="panel-list">
               <li v-for="p in participants" :key="p.id" class="panel-list-item">
-                <span class="dot"></span>
+                <span class="dot" :class="{ spect: p.spectator }"></span>
                 <span class="panel-name">{{ p.name }}</span>
+
+                <span v-if="p.spectator" class="badge">SPECT</span>
+                <span v-if="cheaters.has(p.id)" class="badge badge-cheater">CHEATER</span>
               </li>
             </ul>
           </div>
 
-          <!-- Center content -->
+          <!-- Middle -->
           <div class="middle">
+
+            <!-- Status: who still needs to vote -->
+            <div class="card status">
+              <div class="status-row">
+                <div class="status-title">Status</div>
+                <div class="status-count">
+                  {{ Object.keys(votes).length }} / {{ voters.length }}
+                </div>
+              </div>
+
+              <div class="status-subtitle">Waiting for</div>
+
+              <div v-if="everyoneVoted" class="status-empty status-ok">
+                Everyone voted
+              </div>
+
+              <div v-else class="chips">
+                <span v-for="p in waitingFor" :key="p.id" class="chip chip-waiting">
+                  {{ p.name }}
+                </span>
+              </div>
+
+              <div class="status-hint" v-if="voters.length === 0">
+                No voters in room (everyone is spectator)
+              </div>
+            </div>
+
+            <!-- Vote -->
             <div class="card status">
               <div class="status-row">
                 <div class="status-title">Vote</div>
-                <div class="status-count">{{ Object.keys(votes).length }} / {{ participants.length }}</div>
+                <div class="status-count"></div>
               </div>
-              <div class="status-subtitle">Pick a card</div>
 
               <div class="cards">
                 <button
@@ -328,6 +441,7 @@ const copyRoomUrl = async () => {
                   :key="c"
                   class="card-btn"
                   :class="{ selected: selectedCard === c }"
+                  :disabled="spectatorMe"
                   @click="voteCard(c)"
                 >
                   {{ c }}
@@ -340,17 +454,27 @@ const copyRoomUrl = async () => {
               </div>
             </div>
 
+            <!-- Revealed votes -->
             <div v-if="revealed" class="card votes-card">
               <div class="panel-title">Votes</div>
+
               <ul class="vote-list">
-                <li v-for="(v, id) in votes" :key="id" class="vote-row">
+                <li v-for="row in revealedVotesSorted" :key="row.id" class="vote-row">
                   <span class="vote-name">
-                    {{ participants.find(p => p.id === id)?.name || id }}
+                    {{ row.name }}
+                    <span v-if="cheaters.has(row.id)" class="inline-cheater">CHEATER</span>
+                    <span v-if="isSpectator(row.id)" class="badge">SPECT</span>
                   </span>
-                  <span class="vote-value">{{ v }}</span>
+                  <span class="vote-value">{{ row.value }}</span>
                 </li>
               </ul>
+
+              <div class="avg-left" v-if="averageNumeric !== null">
+                <span class="avg-symbol">Ø</span>
+                <span class="avg-number">{{ averageNumeric }}</span>
+              </div>
             </div>
+
           </div>
         </div>
 
@@ -360,6 +484,5 @@ const copyRoomUrl = async () => {
 </template>
 
 <style scoped>
-/* Keep your component-specific styles minimal.
-   You said you moved styles to global style.css, so usually nothing is needed here. */
+/* All styling lives in src/style.css */
 </style>
