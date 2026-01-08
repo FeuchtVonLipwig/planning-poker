@@ -295,7 +295,6 @@ input::placeholder { color: #9aa3b2; }
   font-weight: 700;
 }
 .chip-voted { background: rgba(34,197,94,0.15); color: #bbf7d0; }
-.chip-waiting { background: rgba(239,68,68,0.15); color: #fecaca; }
 
 /* VOTING */
 .cards {
