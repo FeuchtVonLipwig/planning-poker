@@ -291,7 +291,7 @@ const closeSession = () => {
 }
 
 // --------------------
-// Clipboard
+// Clipboard (UPDATED)
 // --------------------
 function setCopied(which: 'id' | 'url') {
   copied.value = true
@@ -429,6 +429,7 @@ const copyUrl = async () => {
               <p class="room-id-value">{{ roomId }}</p>
             </div>
 
+            <!-- NEW: copy actions under Room ID -->
             <ul class="copy-links" aria-label="Copy options">
               <li>
                 <button class="link-btn" type="button" @click="copyId">
@@ -480,12 +481,7 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
-
-                <!-- CHANGED: show grey bubble like SPECTATOR badge -->
-                <div v-if="voted.length === 0" class="status-empty">
-                  <span class="chip chip-waiting">No votes yet</span>
-                </div>
-
+                <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
                 <div v-else class="chips">
                   <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
                 </div>
