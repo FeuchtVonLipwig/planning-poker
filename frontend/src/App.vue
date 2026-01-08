@@ -72,10 +72,11 @@ socket.on('error', (msg: string) => {
 
 // --- URL parsing ---
 function parseRoomFromUrl(): string | null {
-  // Accept /room/<id>
   const path = window.location.pathname || '/'
   const match = path.match(/^\/room\/([^/]+)\/?$/)
-  if (!match) return null
+
+  if (!match || !match[1]) return null
+
   return decodeURIComponent(match[1])
 }
 
