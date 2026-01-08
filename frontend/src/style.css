@@ -457,6 +457,14 @@ input::placeholder { color: #9aa3b2; }
   text-decoration: underline;
 }
 
+/* Make "No votes yet" badge same visual size as chips/names
+   (keeps the status panel height stable when first vote appears) */
+.badge-normal {
+  font-size: 0.9rem;        /* match your general text size feel */
+  padding: 0.25rem 0.6rem;  /* closer to chip sizing */
+  line-height: 1.2;
+}
+
 /* RESPONSIVE */
 @media (max-width: 1100px) {
   .panel {
