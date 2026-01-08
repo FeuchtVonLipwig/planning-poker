@@ -32,7 +32,7 @@ const copied = ref(false)
 let copiedTimer: number | null = null
 
 // --------------------
-// LocalStorage (NEW)
+// LocalStorage (remember name)
 // --------------------
 const NAME_STORAGE_KEY = 'planning_poker_name'
 
@@ -41,9 +41,48 @@ onMounted(() => {
     const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
     if (saved && !userName.value) userName.value = saved
   } catch {
-    // ignore (some browsers / privacy modes can block storage)
+    // ignore
   }
+
+  // URL room detection (NEW)
+  const rid = getRoomIdFromUrl()
+  if (rid) {
+    pendingRoomFromUrl.value = rid
+    roomId.value = rid
+  }
+
+  // Handle back/forward navigation
+  window.addEventListener('popstate', () => {
+    const newRid = getRoomIdFromUrl()
+    pendingRoomFromUrl.value = newRid
+    if (newRid) roomId.value = newRid
+  })
 })
+
+// --------------------
+// URL helpers (NEW)
+// --------------------
+const pendingRoomFromUrl = ref<string | null>(null)
+
+function getRoomIdFromUrl(): string | null {
+  const path = window.location.pathname || '/'
+  const match = path.match(/^\/room\/([^/]+)\/?$/)
+  if (!match || !match[1]) return null
+  return decodeURIComponent(match[1])
+}
+
+function setUrlToRoom(id: string) {
+  const next = `/room/${encodeURIComponent(id)}`
+  if (window.location.pathname !== next) {
+    window.history.pushState({}, '', next)
+  }
+}
+
+function setUrlHome() {
+  if (window.location.pathname !== '/') {
+    window.history.pushState({}, '', '/')
+  }
+}
 
 // --------------------
 // Derived
@@ -117,6 +156,7 @@ const averageInfo = computed(() => {
 socket.on("room-created", (id: string) => {
   roomId.value = id
   step.value = 3
+  setUrlToRoom(id) // NEW: reflect in URL
 })
 
 socket.on("users-updated", (users: any[]) => {
@@ -164,11 +204,22 @@ watch(step, (s) => {
 const acceptName = () => {
   if (!userName.value.trim()) return alert("Please enter your name")
 
-  // NEW: persist name
+  // remember name
   try {
     window.localStorage.setItem(NAME_STORAGE_KEY, userName.value.trim())
   } catch {
     // ignore
+  }
+
+  // NEW: if URL has /room/<id>, go directly to room
+  if (pendingRoomFromUrl.value) {
+    const id = pendingRoomFromUrl.value.trim()
+    roomId.value = id
+    socket.emit("join-or-create-room", { roomId: id, name: userName.value })
+    step.value = 3
+    // URL already contains the room, but keep it consistent:
+    setUrlToRoom(id)
+    return
   }
 
   step.value = 2
@@ -179,6 +230,8 @@ const backFromSessionToName = () => {
   roomId.value = ''
   newRoomCode.value = ''
   step.value = 1
+  pendingRoomFromUrl.value = null
+  setUrlHome() // NEW: go back to normal entry URL
 }
 
 const createRoom = () => {
@@ -196,6 +249,8 @@ const joinRoom = (idOverride?: string) => {
   roomId.value = id
   socket.emit("join-room", { roomId: id, name: userName.value })
   step.value = 3
+  pendingRoomFromUrl.value = id // NEW
+  setUrlToRoom(id) // NEW
 }
 
 const setSpectator = () => {
@@ -225,11 +280,13 @@ const closeSession = () => {
   revealed.value = false
   isSpectator.value = false
   cheaters.value = {}
+  pendingRoomFromUrl.value = null
+  setUrlHome() // NEW
   socket.emit("get-public-rooms")
 }
 
 // --------------------
-// Clipboard
+// Clipboard (unchanged: still copies roomId only)
 // --------------------
 const copyRoomId = async () => {
   if (!roomId.value) return

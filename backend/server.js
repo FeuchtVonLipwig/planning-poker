@@ -56,7 +56,6 @@ io.on("connection", (socket) => {
   });
 
   // --- Create Room ---
-  // CHANGED: expects { isPrivate } and public is default
   socket.on("create-room", ({ roomCode, name, isPrivate }) => {
     const roomId = roomCode || Math.random().toString(36).substring(2, 8);
 
@@ -69,7 +68,7 @@ io.on("connection", (socket) => {
       users: [],
       votes: {},
       revealed: false,
-      public: !isPrivate, // CHANGED
+      public: !isPrivate, // public default
       cheaters: {}
     };
 
@@ -84,7 +83,7 @@ io.on("connection", (socket) => {
     broadcastPublicRooms();
   });
 
-  // --- Join Room ---
+  // --- Join Room (existing behavior unchanged) ---
   socket.on("join-room", ({ roomId, name }) => {
     if (!rooms[roomId]) return socket.emit("error", "Room not found");
 
@@ -97,6 +96,38 @@ io.on("connection", (socket) => {
     emitUsers(roomId);
     emitVotes(roomId);
     emitCheaters(roomId);
+    broadcastPublicRooms();
+  });
+
+  // --- NEW: Join-or-create via URL ---
+  socket.on("join-or-create-room", ({ roomId, name }) => {
+    if (!roomId || !String(roomId).trim()) {
+      socket.emit("error", "Room not found");
+      return;
+    }
+
+    const id = String(roomId).trim();
+
+    // Create if missing => PUBLIC room
+    if (!rooms[id]) {
+      rooms[id] = {
+        users: [],
+        votes: {},
+        revealed: false,
+        public: true, // IMPORTANT: public by default for URL-created rooms
+        cheaters: {}
+      };
+    }
+
+    socket.join(id);
+
+    // prevent duplicate entries
+    rooms[id].users = rooms[id].users.filter(u => u.id !== socket.id);
+    rooms[id].users.push({ id: socket.id, name, spectator: false });
+
+    emitUsers(id);
+    emitVotes(id);
+    emitCheaters(id);
     broadcastPublicRooms();
   });
 
