@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { socket } from './socket'
 
 // --------------------
@@ -19,7 +19,7 @@ const revealed = ref(false)
 
 const isSpectator = ref(false)
 
-// Rooms (CHANGED: clean private checkbox)
+// Rooms
 const isPrivate = ref(false) // default = PUBLIC
 type PublicRoom = { roomId: string; users: number }
 const publicRooms = ref<PublicRoom[]>([])
@@ -30,6 +30,20 @@ const cheaters = ref<Record<string, boolean>>({})
 // Copy feedback
 const copied = ref(false)
 let copiedTimer: number | null = null
+
+// --------------------
+// LocalStorage (NEW)
+// --------------------
+const NAME_STORAGE_KEY = 'planning_poker_name'
+
+onMounted(() => {
+  try {
+    const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
+    if (saved && !userName.value) userName.value = saved
+  } catch {
+    // ignore (some browsers / privacy modes can block storage)
+  }
+})
 
 // --------------------
 // Derived
@@ -149,6 +163,14 @@ watch(step, (s) => {
 // --------------------
 const acceptName = () => {
   if (!userName.value.trim()) return alert("Please enter your name")
+
+  // NEW: persist name
+  try {
+    window.localStorage.setItem(NAME_STORAGE_KEY, userName.value.trim())
+  } catch {
+    // ignore
+  }
+
   step.value = 2
   socket.emit("get-public-rooms")
 }
@@ -285,7 +307,6 @@ const copyRoomId = async () => {
               <label class="label">Create a room</label>
               <input v-model="newRoomCode" placeholder="New room code" />
 
-              <!-- CHANGED: Public is default, checkbox is Private -->
               <label class="check-row">
                 <input type="checkbox" v-model="isPrivate" />
                 <span>Private</span>
