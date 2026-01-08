@@ -410,23 +410,6 @@ input::placeholder { color: #9aa3b2; }
   /* SAFETY: allow shrinking */
   min-width: 0;
 }
-.copy-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.35);
-  color: #cbd3e6;
-  cursor: pointer;
-}
-.copy-btn:hover {
-  background: rgba(255,255,255,0.06);
-  color: #f5f7ff;
-}
 
 /* Copy links under Room ID */
 .copy-links {

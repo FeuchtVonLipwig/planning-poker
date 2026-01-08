@@ -120,6 +120,10 @@ const voteCountText = computed(() =>
   `${voted.value.length}/${activeParticipants.value.length} voted`
 )
 
+// ✅ NEW: button enable/disable logic
+const canReveal = computed(() => Object.keys(activeVotesMap.value || {}).length > 0)
+const canReset = computed(() => revealed.value === true)
+
 // Sort votes highest first; non-numeric at bottom
 const sortedVotes = computed(() => {
   const vmap = activeVotesMap.value
@@ -269,9 +273,13 @@ const voteCard = (value: string) => {
   socket.emit("vote", { roomId: roomId.value, value })
 }
 
-const revealVotes = () => socket.emit("reveal", roomId.value)
+const revealVotes = () => {
+  if (!canReveal.value) return
+  socket.emit("reveal", roomId.value)
+}
 
 const resetVotes = () => {
+  if (!canReset.value) return
   socket.emit("reset", roomId.value)
   selectedCard.value = null
 }
@@ -429,7 +437,6 @@ const copyUrl = async () => {
               <p class="room-id-value">{{ roomId }}</p>
             </div>
 
-            <!-- NEW: copy actions under Room ID -->
             <ul class="copy-links" aria-label="Copy options">
               <li>
                 <button class="link-btn" type="button" @click="copyId">
@@ -519,8 +526,12 @@ const copyUrl = async () => {
             </div>
 
             <div class="buttons">
-              <button class="btn" @click="revealVotes" type="button">Reveal Votes</button>
-              <button class="btn btn-ghost" @click="resetVotes" type="button">Reset</button>
+              <button class="btn" @click="revealVotes" type="button" :disabled="!canReveal">
+                Reveal Votes
+              </button>
+              <button class="btn btn-ghost" @click="resetVotes" type="button" :disabled="!canReset">
+                Reset
+              </button>
             </div>
 
             <div v-if="revealed" class="card votes-card">
