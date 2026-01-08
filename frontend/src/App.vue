@@ -29,6 +29,7 @@ const cheaters = ref<Record<string, boolean>>({})
 
 // Copy feedback
 const copied = ref(false)
+const copiedWhat = ref<'id' | 'url' | null>(null)
 let copiedTimer: number | null = null
 
 // --------------------
@@ -36,31 +37,8 @@ let copiedTimer: number | null = null
 // --------------------
 const NAME_STORAGE_KEY = 'planning_poker_name'
 
-onMounted(() => {
-  try {
-    const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
-    if (saved && !userName.value) userName.value = saved
-  } catch {
-    // ignore
-  }
-
-  // URL room detection (NEW)
-  const rid = getRoomIdFromUrl()
-  if (rid) {
-    pendingRoomFromUrl.value = rid
-    roomId.value = rid
-  }
-
-  // Handle back/forward navigation
-  window.addEventListener('popstate', () => {
-    const newRid = getRoomIdFromUrl()
-    pendingRoomFromUrl.value = newRid
-    if (newRid) roomId.value = newRid
-  })
-})
-
 // --------------------
-// URL helpers (NEW)
+// URL helpers
 // --------------------
 const pendingRoomFromUrl = ref<string | null>(null)
 
@@ -83,6 +61,34 @@ function setUrlHome() {
     window.history.pushState({}, '', '/')
   }
 }
+
+function currentRoomUrl(): string {
+  return `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
+}
+
+onMounted(() => {
+  // restore name
+  try {
+    const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
+    if (saved && !userName.value) userName.value = saved
+  } catch {
+    // ignore
+  }
+
+  // URL room detection
+  const rid = getRoomIdFromUrl()
+  if (rid) {
+    pendingRoomFromUrl.value = rid
+    roomId.value = rid
+  }
+
+  // Handle back/forward navigation
+  window.addEventListener('popstate', () => {
+    const newRid = getRoomIdFromUrl()
+    pendingRoomFromUrl.value = newRid
+    if (newRid) roomId.value = newRid
+  })
+})
 
 // --------------------
 // Derived
@@ -156,7 +162,7 @@ const averageInfo = computed(() => {
 socket.on("room-created", (id: string) => {
   roomId.value = id
   step.value = 3
-  setUrlToRoom(id) // NEW: reflect in URL
+  setUrlToRoom(id)
 })
 
 socket.on("users-updated", (users: any[]) => {
@@ -211,13 +217,12 @@ const acceptName = () => {
     // ignore
   }
 
-  // NEW: if URL has /room/<id>, go directly to room
+  // If URL has /room/<id>, go directly to room
   if (pendingRoomFromUrl.value) {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
     socket.emit("join-or-create-room", { roomId: id, name: userName.value })
     step.value = 3
-    // URL already contains the room, but keep it consistent:
     setUrlToRoom(id)
     return
   }
@@ -231,7 +236,7 @@ const backFromSessionToName = () => {
   newRoomCode.value = ''
   step.value = 1
   pendingRoomFromUrl.value = null
-  setUrlHome() // NEW: go back to normal entry URL
+  setUrlHome()
 }
 
 const createRoom = () => {
@@ -249,8 +254,8 @@ const joinRoom = (idOverride?: string) => {
   roomId.value = id
   socket.emit("join-room", { roomId: id, name: userName.value })
   step.value = 3
-  pendingRoomFromUrl.value = id // NEW
-  setUrlToRoom(id) // NEW
+  pendingRoomFromUrl.value = id
+  setUrlToRoom(id)
 }
 
 const setSpectator = () => {
@@ -281,45 +286,53 @@ const closeSession = () => {
   isSpectator.value = false
   cheaters.value = {}
   pendingRoomFromUrl.value = null
-  setUrlHome() // NEW
+  setUrlHome()
   socket.emit("get-public-rooms")
 }
 
 // --------------------
-// Clipboard (unchanged: still copies roomId only)
+// Clipboard (UPDATED)
 // --------------------
-const copyRoomId = async () => {
-  if (!roomId.value) return
-  try {
-    await navigator.clipboard.writeText(roomId.value)
+function setCopied(which: 'id' | 'url') {
+  copied.value = true
+  copiedWhat.value = which
+  if (copiedTimer) window.clearTimeout(copiedTimer)
+  copiedTimer = window.setTimeout(() => {
+    copied.value = false
+    copiedWhat.value = null
+    copiedTimer = null
+  }, 1200)
+}
 
-    copied.value = true
-    if (copiedTimer) window.clearTimeout(copiedTimer)
-    copiedTimer = window.setTimeout(() => {
-      copied.value = false
-      copiedTimer = null
-    }, 1200)
+async function copyTextToClipboard(text: string, which: 'id' | 'url') {
+  try {
+    await navigator.clipboard.writeText(text)
+    setCopied(which)
   } catch {
     try {
       const ta = document.createElement('textarea')
-      ta.value = roomId.value
+      ta.value = text
       ta.style.position = 'fixed'
       ta.style.left = '-9999px'
       document.body.appendChild(ta)
       ta.select()
       document.execCommand('copy')
       document.body.removeChild(ta)
-
-      copied.value = true
-      if (copiedTimer) window.clearTimeout(copiedTimer)
-      copiedTimer = window.setTimeout(() => {
-        copied.value = false
-        copiedTimer = null
-      }, 1200)
+      setCopied(which)
     } catch {
       alert("Could not copy to clipboard.")
     }
   }
+}
+
+const copyId = async () => {
+  if (!roomId.value) return
+  await copyTextToClipboard(roomId.value, 'id')
+}
+
+const copyUrl = async () => {
+  if (!roomId.value) return
+  await copyTextToClipboard(currentRoomUrl(), 'url')
 }
 </script>
 
@@ -414,17 +427,25 @@ const copyRoomId = async () => {
             <div class="room-id-row">
               <p class="room-id-label"><strong>Room ID:</strong></p>
               <p class="room-id-value">{{ roomId }}</p>
-
-              <button
-                class="copy-btn"
-                @click="copyRoomId"
-                type="button"
-                :title="copied ? 'Copied!' : 'Copy room id'"
-              >
-                <span v-if="!copied">📋</span>
-                <span v-else>✓</span>
-              </button>
             </div>
+
+            <!-- NEW: copy actions under Room ID -->
+            <ul class="copy-links" aria-label="Copy options">
+              <li>
+                <button class="link-btn" type="button" @click="copyId">
+                  <span v-if="copied && copiedWhat === 'id'">✓</span>
+                  <span v-else>•</span>
+                  Copy id
+                </button>
+              </li>
+              <li>
+                <button class="link-btn" type="button" @click="copyUrl">
+                  <span v-if="copied && copiedWhat === 'url'">✓</span>
+                  <span v-else>•</span>
+                  Copy URL
+                </button>
+              </li>
+            </ul>
 
             <p><strong>You:</strong> {{ userName }}</p>
 
