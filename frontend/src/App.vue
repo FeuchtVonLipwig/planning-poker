@@ -483,7 +483,7 @@ const copyUrl = async () => {
 
                 <!-- CHANGED: show grey bubble like SPECTATOR badge -->
                 <div v-if="voted.length === 0" class="status-empty">
-                  <span class="badge badge-normal">No votes yet</span>
+                  <span class="chip chip-waiting">No votes yet</span>
                 </div>
 
                 <div v-else class="chips">
