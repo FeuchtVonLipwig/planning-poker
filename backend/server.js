@@ -18,45 +18,45 @@ const io = new Server(httpServer, {
 });
 
 // In-memory room storage
-// rooms[roomId] = { users: [{id,name,spectator}], votes: {}, revealed: false, public: boolean }
 const rooms = {};
 
-function getPublicRooms() {
+// Helpers
+function getPublicRoomsList() {
   return Object.entries(rooms)
-    .filter(([_, r]) => r.public)
-    .map(([roomId, r]) => ({ roomId, usersCount: r.users.length }));
+    .filter(([_, room]) => room.public === true)
+    .map(([roomId, room]) => ({
+      roomId,
+      users: room.users?.length || 0
+    }))
+    .sort((a, b) => a.roomId.localeCompare(b.roomId));
 }
 
 function broadcastPublicRooms() {
-  io.emit("public-rooms-updated", getPublicRooms());
+  io.emit("public-rooms-updated", getPublicRoomsList());
 }
 
 function emitUsers(roomId) {
   io.to(roomId).emit("users-updated", rooms[roomId].users);
 }
 
+function emitVotes(roomId) {
+  io.to(roomId).emit("votes-updated", rooms[roomId].votes);
+}
+
+function emitCheaters(roomId) {
+  io.to(roomId).emit("cheaters-updated", rooms[roomId].cheaters || {});
+}
+
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
-  // Send initial public rooms list
-  socket.emit("public-rooms-updated", getPublicRooms());
+  // Client asks for current public rooms list
+  socket.on("get-public-rooms", () => {
+    socket.emit("public-rooms-updated", getPublicRoomsList());
+  });
 
-  // CREATE ROOM
-  // Accepts:
-  //  - "ABC123"
-  //  - { roomCode, name, public }
-  socket.on("create-room", (payload) => {
-    const roomCode =
-      typeof payload === "string" ? payload : (payload?.roomCode || "");
-
-    const name =
-      typeof payload === "object" && payload?.name ? payload.name : null;
-
-    const isPublic =
-      typeof payload === "object" && typeof payload?.public === "boolean"
-        ? payload.public
-        : false;
-
+  // --- Create Room ---
+  socket.on("create-room", ({ roomCode, name, isPublic }) => {
     const roomId = roomCode || Math.random().toString(36).substring(2, 8);
 
     if (rooms[roomId]) {
@@ -64,46 +64,42 @@ io.on("connection", (socket) => {
       return;
     }
 
-    rooms[roomId] = { users: [], votes: {}, revealed: false, public: isPublic };
+    rooms[roomId] = {
+      users: [],
+      votes: {},
+      revealed: false,
+      public: !!isPublic,
+      cheaters: {} // NEW
+    };
 
-    // Creator auto-joins (important)
+    // auto-join creator
     socket.join(roomId);
-    if (name) {
-      rooms[roomId].users.push({ id: socket.id, name, spectator: false });
-      emitUsers(roomId);
-    }
+    rooms[roomId].users.push({ id: socket.id, name, spectator: false });
 
     socket.emit("room-created", roomId);
+    emitUsers(roomId);
+    emitVotes(roomId);
+    emitCheaters(roomId);
     broadcastPublicRooms();
   });
 
-  // JOIN ROOM
-  // Requirement:
-  // - If room exists -> join
-  // - If room doesn't exist -> create private room and join
+  // --- Join Room ---
   socket.on("join-room", ({ roomId, name }) => {
-    if (!roomId) return socket.emit("error", "Room not found");
-
-    if (!rooms[roomId]) {
-      // Create private room
-      rooms[roomId] = { users: [], votes: {}, revealed: false, public: false };
-      broadcastPublicRooms();
-    }
+    if (!rooms[roomId]) return socket.emit("error", "Room not found");
 
     socket.join(roomId);
 
-    // Prevent duplicates
+    // prevent duplicate entries
     rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
     rooms[roomId].users.push({ id: socket.id, name, spectator: false });
 
     emitUsers(roomId);
-
-    // Sync current state
-    socket.emit("votes-updated", rooms[roomId].votes);
-    if (rooms[roomId].revealed) socket.emit("revealed");
+    emitVotes(roomId);
+    emitCheaters(roomId);
+    broadcastPublicRooms();
   });
 
-  // SPECTATOR TOGGLE
+  // --- Toggle spectator ---
   socket.on("set-spectator", ({ roomId, spectator }) => {
     if (!rooms[roomId]) return;
 
@@ -111,49 +107,88 @@ io.on("connection", (socket) => {
     if (!user) return;
 
     user.spectator = !!spectator;
+
+    // If user becomes spectator, remove their vote + cheater status
+    if (user.spectator) {
+      if (rooms[roomId].votes[socket.id] !== undefined) delete rooms[roomId].votes[socket.id];
+      if (rooms[roomId].cheaters?.[socket.id]) delete rooms[roomId].cheaters[socket.id];
+    }
+
     emitUsers(roomId);
+    emitVotes(roomId);
+    emitCheaters(roomId);
   });
 
-  // VOTE
+  // --- Vote ---
   socket.on("vote", ({ roomId, value }) => {
     if (!rooms[roomId]) return;
-    rooms[roomId].votes[socket.id] = value;
-    io.to(roomId).emit("votes-updated", rooms[roomId].votes);
+
+    const room = rooms[roomId];
+    const user = room.users.find(u => u.id === socket.id);
+    if (!user) return;
+
+    // spectators cannot vote
+    if (user.spectator) return;
+
+    const previous = room.votes[socket.id];
+
+    // NEW: if revealed and someone CHANGES an existing vote => cheater
+    if (room.revealed === true && previous !== undefined && previous !== value) {
+      room.cheaters[socket.id] = true;
+    }
+
+    room.votes[socket.id] = value;
+
+    emitVotes(roomId);
+    emitCheaters(roomId);
   });
 
-  // REVEAL
+  // --- Reveal Votes ---
   socket.on("reveal", (roomId) => {
     if (!rooms[roomId]) return;
     rooms[roomId].revealed = true;
+
+    // start fresh cheating tracking for this reveal round
+    rooms[roomId].cheaters = {};
+
     io.to(roomId).emit("revealed");
+    emitCheaters(roomId);
   });
 
-  // RESET
+  // --- Reset Votes ---
   socket.on("reset", (roomId) => {
     if (!rooms[roomId]) return;
+
     rooms[roomId].votes = {};
     rooms[roomId].revealed = false;
+
+    // NEW: reset cheaters on reset
+    rooms[roomId].cheaters = {};
+
     io.to(roomId).emit("reset");
+    emitVotes(roomId);
+    emitCheaters(roomId);
   });
 
-  // DISCONNECT
+  // --- Disconnect ---
   socket.on("disconnect", () => {
     for (const roomId of Object.keys(rooms)) {
       const room = rooms[roomId];
 
-      // Remove user + their vote
       room.users = room.users.filter(u => u.id !== socket.id);
-      delete room.votes[socket.id];
+      if (room.votes[socket.id] !== undefined) delete room.votes[socket.id];
+      if (room.cheaters?.[socket.id]) delete room.cheaters[socket.id];
 
       if (room.users.length === 0) {
         delete rooms[roomId];
-        broadcastPublicRooms();
       } else {
         emitUsers(roomId);
-        io.to(roomId).emit("votes-updated", room.votes);
-        broadcastPublicRooms();
+        emitVotes(roomId);
+        emitCheaters(roomId);
       }
     }
+
+    broadcastPublicRooms();
     console.log("Client disconnected:", socket.id);
   });
 });
@@ -161,8 +196,6 @@ io.on("connection", (socket) => {
 // Serve frontend static files
 const distPath = path.join(__dirname, "../frontend/dist");
 app.use(express.static(distPath));
-
-// SPA fallback so /room/XYZ loads the app
 app.get("*", (_, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
