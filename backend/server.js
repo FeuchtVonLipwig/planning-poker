@@ -202,6 +202,40 @@ io.on("connection", (socket) => {
     emitCheaters(roomId);
   });
 
+// --- Leave Room (when clicking "Close Session") ---
+socket.on("leave-room", ({ roomId }) => {
+  if (!rooms[roomId]) return;
+
+  const room = rooms[roomId];
+
+  // Leave the Socket.IO room
+  socket.leave(roomId);
+
+  // Remove from users
+  room.users = (room.users || []).filter(u => u.id !== socket.id);
+
+  // Remove vote + cheater status for this socket
+  if (room.votes?.[socket.id] !== undefined) delete room.votes[socket.id];
+  if (room.cheaters?.[socket.id]) delete room.cheaters[socket.id];
+
+  // If room is now empty, keep it but make sure state is "clean"
+  if (room.users.length === 0) {
+    room.votes = {};
+    room.revealed = false;
+    room.cheaters = {};
+    // room.public / other flags stay as-is
+  } else {
+    // Otherwise update remaining users
+    emitUsers(roomId);
+    emitVotes(roomId);
+    emitCheaters(roomId);
+  }
+
+  // Always refresh public rooms list (shows 0 users now)
+  broadcastPublicRooms();
+});
+
+
   // --- Disconnect ---
   socket.on("disconnect", () => {
     for (const roomId of Object.keys(rooms)) {

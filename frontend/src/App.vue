@@ -325,18 +325,26 @@ const resetVotes = () => {
 }
 
 const closeSession = () => {
+  const oldRoom = roomId.value
+
+  // Tell server we are leaving (before clearing local state)
+  if (oldRoom) {
+    socket.emit("leave-room", { roomId: oldRoom })
+  }
+
   step.value = 2
   roomId.value = ''
   participants.value = []
   votes.value = {}
   selectedCard.value = null
   revealed.value = false
-  // NOTE: do NOT reset isSpectator here, because we want it remembered across rooms
+  // keep spectator preference (localStorage)
   cheaters.value = {}
   pendingRoomFromUrl.value = null
   setUrlHome()
   socket.emit("get-public-rooms")
 }
+
 
 // --------------------
 // Clipboard (UPDATED)
