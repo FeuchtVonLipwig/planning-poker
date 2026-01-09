@@ -33,9 +33,10 @@ const copiedWhat = ref<'id' | 'url' | null>(null)
 let copiedTimer: number | null = null
 
 // --------------------
-// LocalStorage (remember name)
+// LocalStorage (remember name + spectator)
 // --------------------
 const NAME_STORAGE_KEY = 'planning_poker_name'
+const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
 
 // --------------------
 // URL helpers
@@ -66,11 +67,31 @@ function currentRoomUrl(): string {
   return `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
 }
 
+/**
+ * Apply the locally stored spectator preference to the current room.
+ * Safe to call any time after roomId is set and we're in step 3.
+ */
+function applySpectatorToRoom() {
+  if (!roomId.value) return
+  if (isSpectator.value) selectedCard.value = null
+  socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
+}
+
 onMounted(() => {
   // restore name
   try {
     const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
     if (saved && !userName.value) userName.value = saved
+  } catch {
+    // ignore
+  }
+
+  // restore spectator preference
+  try {
+    const savedSpect = window.localStorage.getItem(SPECTATOR_STORAGE_KEY)
+    if (savedSpect !== null) {
+      isSpectator.value = savedSpect === 'true'
+    }
   } catch {
     // ignore
   }
@@ -88,6 +109,15 @@ onMounted(() => {
     pendingRoomFromUrl.value = newRid
     if (newRid) roomId.value = newRid
   })
+})
+
+// Persist spectator preference whenever the checkbox changes
+watch(isSpectator, (val) => {
+  try {
+    window.localStorage.setItem(SPECTATOR_STORAGE_KEY, String(!!val))
+  } catch {
+    // ignore
+  }
 })
 
 // --------------------
@@ -120,9 +150,6 @@ const voteCountText = computed(() =>
   `${voted.value.length}/${activeParticipants.value.length} voted`
 )
 
-// ✅ NEW RULES:
-// - Reveal enabled only if at least 1 vote AND not revealed
-// - Reset enabled if at least 1 vote (even if not revealed)
 const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length > 0)
 const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
 const canReset = computed(() => hasAnyVote.value)
@@ -170,6 +197,9 @@ socket.on("room-created", (id: string) => {
   roomId.value = id
   step.value = 3
   setUrlToRoom(id)
+
+  // Apply stored spectator preference after entering the room
+  applySpectatorToRoom()
 })
 
 socket.on("users-updated", (users: any[]) => {
@@ -177,6 +207,7 @@ socket.on("users-updated", (users: any[]) => {
 
   const me = participants.value.find(p => p.id === socket.id)
   if (me && typeof me.spectator === 'boolean') {
+    // keep checkbox in sync with server for this room
     isSpectator.value = !!me.spectator
   }
 })
@@ -231,6 +262,9 @@ const acceptName = () => {
     socket.emit("join-or-create-room", { roomId: id, name: userName.value })
     step.value = 3
     setUrlToRoom(id)
+
+    // Apply stored spectator preference (we are entering a room)
+    applySpectatorToRoom()
     return
   }
 
@@ -263,6 +297,9 @@ const joinRoom = (idOverride?: string) => {
   step.value = 3
   pendingRoomFromUrl.value = id
   setUrlToRoom(id)
+
+  // Apply stored spectator preference after joining
+  applySpectatorToRoom()
 }
 
 const setSpectator = () => {
@@ -294,7 +331,7 @@ const closeSession = () => {
   votes.value = {}
   selectedCard.value = null
   revealed.value = false
-  isSpectator.value = false
+  // NOTE: do NOT reset isSpectator here, because we want it remembered across rooms
   cheaters.value = {}
   pendingRoomFromUrl.value = null
   setUrlHome()
