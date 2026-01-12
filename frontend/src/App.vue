@@ -595,10 +595,10 @@ const copyUrl = async () => {
             <!-- MODAL: Votes (opens automatically on reveal) -->
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
               <div class="modal">
+                <div class="card votes-card">
                 <div class="modal-header">
                   <h3 class="modal-title">Votes</h3>
                 </div>
-
                 <!-- Keep your existing Votes card content, unchanged -->
                 <div class="card votes-card">
                   <ul class="vote-list">
