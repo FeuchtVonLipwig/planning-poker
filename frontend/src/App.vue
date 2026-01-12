@@ -25,7 +25,7 @@ const isPrivate = ref(false) // default = PUBLIC
 type PublicRoom = { roomId: string; users: number }
 const publicRooms = ref<PublicRoom[]>([])
 
-// NEW: Room setting (auto reveal)
+// Room setting (auto reveal)
 const autoReveal = ref(false)
 
 // Cheaters (current reveal round)
@@ -178,6 +178,9 @@ const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length
 const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
 const canReset = computed(() => hasAnyVote.value)
 
+// NEW: helper for “everyone is spectator” case
+const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0)
+
 // Sort votes highest first; non-numeric at bottom
 const sortedVotes = computed(() => {
   const vmap = activeVotesMap.value
@@ -222,7 +225,6 @@ socket.on("room-created", (id: string) => {
   step.value = 3
   setUrlToRoom(id)
 
-  // Apply stored spectator preference after entering the room
   applySpectatorToRoom()
 })
 
@@ -231,7 +233,6 @@ socket.on("users-updated", (users: any[]) => {
 
   const me = participants.value.find(p => p.id === socket.id)
   if (me && typeof me.spectator === 'boolean') {
-    // keep checkbox in sync with server for this room
     isSpectator.value = !!me.spectator
   }
 })
@@ -250,7 +251,6 @@ socket.on("reset", () => {
   revealed.value = false
   selectedCard.value = null
   cheaters.value = {}
-
   showVotesModal.value = false
 })
 
@@ -262,7 +262,6 @@ socket.on("cheaters-updated", (c: Record<string, boolean>) => {
   cheaters.value = c || {}
 })
 
-// NEW: room settings sync (so joiners do NOT override the existing room setting)
 socket.on("room-settings-updated", (settings: { autoReveal?: boolean }) => {
   if (typeof settings?.autoReveal === 'boolean') {
     autoReveal.value = settings.autoReveal
@@ -271,7 +270,6 @@ socket.on("room-settings-updated", (settings: { autoReveal?: boolean }) => {
 
 socket.on("error", (msg: string) => alert(msg))
 
-// Refresh public rooms list on entering Session screen
 watch(step, (s) => {
   if (s === 2) socket.emit("get-public-rooms")
 })
@@ -282,23 +280,19 @@ watch(step, (s) => {
 const acceptName = () => {
   if (!userName.value.trim()) return alert("Please enter your name")
 
-  // remember name
   try {
     window.localStorage.setItem(NAME_STORAGE_KEY, userName.value.trim())
   } catch {
     // ignore
   }
 
-  // If URL has /room/<id>, go directly to room
   if (pendingRoomFromUrl.value) {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
-    // include autoReveal only as default for newly-created URL rooms
     socket.emit("join-or-create-room", { roomId: id, name: userName.value, autoReveal: autoReveal.value })
     step.value = 3
     setUrlToRoom(id)
 
-    // Apply stored spectator preference (we are entering a room)
     applySpectatorToRoom()
     return
   }
@@ -334,7 +328,6 @@ const joinRoom = (idOverride?: string) => {
   pendingRoomFromUrl.value = id
   setUrlToRoom(id)
 
-  // Apply stored spectator preference after joining
   applySpectatorToRoom()
 }
 
@@ -343,7 +336,6 @@ const setSpectator = () => {
   socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
 }
 
-// NEW: update room setting (only when user clicks)
 const setAutoReveal = () => {
   if (!roomId.value) return
   socket.emit("set-auto-reveal", { roomId: roomId.value, autoReveal: autoReveal.value })
@@ -374,7 +366,6 @@ const resetVotes = () => {
 const closeSession = () => {
   const oldRoom = roomId.value
 
-  // Tell server we are leaving (before clearing local state)
   if (oldRoom) {
     socket.emit("leave-room", { roomId: oldRoom })
   }
@@ -386,7 +377,6 @@ const closeSession = () => {
   selectedCard.value = null
   revealed.value = false
   showVotesModal.value = false
-  // keep spectator preference (localStorage)
   cheaters.value = {}
   pendingRoomFromUrl.value = null
   setUrlHome()
@@ -394,7 +384,7 @@ const closeSession = () => {
 }
 
 // --------------------
-// Clipboard (UPDATED)
+// Clipboard
 // --------------------
 function setCopied(which: 'id' | 'url') {
   copied.value = true
@@ -549,7 +539,7 @@ const copyUrl = async () => {
               </li>
             </ul>
 
-            <!-- NEW: Auto-reveal setting -->
+            <!-- Auto-reveal -->
             <label class="spectator-row">
               <input type="checkbox" v-model="autoReveal" @change="setAutoReveal" />
               <span>Auto-reveal</span>
@@ -589,7 +579,8 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
-                <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
+                <!-- Change #2: match spectator hint color -->
+                <div v-if="voted.length === 0" class="status-empty status-hint">No votes yet</div>
                 <div v-else class="chips">
                   <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
                 </div>
@@ -597,15 +588,22 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
-                <div v-if="notVoted.length === 0" class="status-empty status-ok">
+
+                <!-- Change #1: if everyone is spectator, do NOT show "Everyone voted" -->
+                <div v-if="everyoneIsSpectator" class="status-empty status-hint">
+                  <!-- keep this section empty; main hint below will show -->
+                </div>
+
+                <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
                   Everyone voted
                 </div>
+
                 <div v-else class="chips">
                   <span v-for="p in notVoted" :key="p.id" class="chip chip-waiting">{{ p.name }}</span>
                 </div>
               </div>
 
-              <div v-if="activeParticipants.length === 0" class="status-hint">
+              <div v-if="everyoneIsSpectator" class="status-hint">
                 Everyone is a spectator (no votes will be counted).
               </div>
             </div>
@@ -635,11 +633,10 @@ const copyUrl = async () => {
               </button>
             </div>
 
-            <!-- MODAL: Votes (opens automatically on reveal) -->
+            <!-- MODAL: Votes -->
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
               <div class="modal">
                 <div class="card votes-card">
-
                   <div class="modal-header">
                     <h3 class="modal-title">Votes</h3>
                   </div>
