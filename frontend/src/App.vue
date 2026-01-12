@@ -25,6 +25,9 @@ const isPrivate = ref(false) // default = PUBLIC
 type PublicRoom = { roomId: string; users: number }
 const publicRooms = ref<PublicRoom[]>([])
 
+// NEW: Room setting (auto reveal)
+const autoReveal = ref(false)
+
 // Cheaters (current reveal round)
 const cheaters = ref<Record<string, boolean>>({})
 
@@ -34,10 +37,11 @@ const copiedWhat = ref<'id' | 'url' | null>(null)
 let copiedTimer: number | null = null
 
 // --------------------
-// LocalStorage (remember name + spectator)
+// LocalStorage (remember name + spectator + auto-reveal preference)
 // --------------------
 const NAME_STORAGE_KEY = 'planning_poker_name'
 const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
+const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
 
 // --------------------
 // URL helpers
@@ -97,6 +101,16 @@ onMounted(() => {
     // ignore
   }
 
+  // restore auto-reveal preference (default for NEW rooms)
+  try {
+    const savedAuto = window.localStorage.getItem(AUTO_REVEAL_STORAGE_KEY)
+    if (savedAuto !== null) {
+      autoReveal.value = savedAuto === 'true'
+    }
+  } catch {
+    // ignore
+  }
+
   // URL room detection
   const rid = getRoomIdFromUrl()
   if (rid) {
@@ -116,6 +130,15 @@ onMounted(() => {
 watch(isSpectator, (val) => {
   try {
     window.localStorage.setItem(SPECTATOR_STORAGE_KEY, String(!!val))
+  } catch {
+    // ignore
+  }
+})
+
+// Persist auto-reveal preference (this is the user's default for creating rooms)
+watch(autoReveal, (val) => {
+  try {
+    window.localStorage.setItem(AUTO_REVEAL_STORAGE_KEY, String(!!val))
   } catch {
     // ignore
   }
@@ -222,7 +245,6 @@ socket.on("revealed", () => {
   showVotesModal.value = true
 })
 
-
 socket.on("reset", () => {
   votes.value = {}
   revealed.value = false
@@ -238,6 +260,13 @@ socket.on("public-rooms-updated", (rooms: PublicRoom[]) => {
 
 socket.on("cheaters-updated", (c: Record<string, boolean>) => {
   cheaters.value = c || {}
+})
+
+// NEW: room settings sync (so joiners do NOT override the existing room setting)
+socket.on("room-settings-updated", (settings: { autoReveal?: boolean }) => {
+  if (typeof settings?.autoReveal === 'boolean') {
+    autoReveal.value = settings.autoReveal
+  }
 })
 
 socket.on("error", (msg: string) => alert(msg))
@@ -264,7 +293,8 @@ const acceptName = () => {
   if (pendingRoomFromUrl.value) {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
-    socket.emit("join-or-create-room", { roomId: id, name: userName.value })
+    // include autoReveal only as default for newly-created URL rooms
+    socket.emit("join-or-create-room", { roomId: id, name: userName.value, autoReveal: autoReveal.value })
     step.value = 3
     setUrlToRoom(id)
 
@@ -290,7 +320,8 @@ const createRoom = () => {
   socket.emit("create-room", {
     roomCode: newRoomCode.value,
     name: userName.value,
-    isPrivate: isPrivate.value
+    isPrivate: isPrivate.value,
+    autoReveal: autoReveal.value
   })
 }
 
@@ -310,6 +341,12 @@ const joinRoom = (idOverride?: string) => {
 const setSpectator = () => {
   if (isSpectator.value) selectedCard.value = null
   socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
+}
+
+// NEW: update room setting (only when user clicks)
+const setAutoReveal = () => {
+  if (!roomId.value) return
+  socket.emit("set-auto-reveal", { roomId: roomId.value, autoReveal: autoReveal.value })
 }
 
 const voteCard = (value: string) => {
@@ -355,7 +392,6 @@ const closeSession = () => {
   setUrlHome()
   socket.emit("get-public-rooms")
 }
-
 
 // --------------------
 // Clipboard (UPDATED)
@@ -513,6 +549,12 @@ const copyUrl = async () => {
               </li>
             </ul>
 
+            <!-- NEW: Auto-reveal setting -->
+            <label class="spectator-row">
+              <input type="checkbox" v-model="autoReveal" @change="setAutoReveal" />
+              <span>Auto-reveal</span>
+            </label>
+
             <p><strong>You:</strong> {{ userName }}</p>
 
             <label class="spectator-row">
@@ -547,7 +589,7 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
-                <div v-if="voted.length === 0" class="status-hint">No votes yet</div>
+                <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
                 <div v-else class="chips">
                   <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
                 </div>
@@ -555,10 +597,7 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
-                <div
-                  v-if="notVoted.length === 0 && activeParticipants.length > 0"
-                  class="status-empty status-ok"
-                >
+                <div v-if="notVoted.length === 0" class="status-empty status-ok">
                   Everyone voted
                 </div>
                 <div v-else class="chips">
@@ -601,7 +640,6 @@ const copyUrl = async () => {
               <div class="modal">
                 <div class="card votes-card">
 
-                  <!-- MOVE header INSIDE the card -->
                   <div class="modal-header">
                     <h3 class="modal-title">Votes</h3>
                   </div>
@@ -616,13 +654,11 @@ const copyUrl = async () => {
                     </li>
                   </ul>
 
-                  <!-- Average aligned right -->
                   <div class="avg-right">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>
                   </div>
 
-                  <!-- Close button INSIDE the card -->
                   <div class="modal-footer">
                     <button class="btn" type="button" @click="closeVotesModal">
                       Close
@@ -633,8 +669,6 @@ const copyUrl = async () => {
               </div>
             </div>
 
-            <!-- Optional: keep the inline (non-modal) votes box off entirely -->
-            <!-- (we do nothing else; modal replaces the old revealed box) -->
           </main>
         </div>
 
