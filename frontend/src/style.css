@@ -434,7 +434,6 @@ input::placeholder { color: #9aa3b2; }
 .avg-number {
   font-weight: 900;
   min-width: 3ch;
-  text-align: right;
 }
 
 /* Room ID copy row */
