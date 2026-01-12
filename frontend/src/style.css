@@ -485,6 +485,57 @@ input::placeholder { color: #9aa3b2; }
   text-decoration: underline;
 }
 
+/* --------------------
+   MODAL (Votes)
+-------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 2000; /* above panels (1000) */
+}
+
+.modal {
+  width: min(720px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: transparent; /* card inside provides background */
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #f5f7ff;
+}
+
+.modal-close {
+  border: 1px solid rgba(42,49,66,0.9);
+  background: rgba(15,17,21,0.35);
+  color: #cbd3e6;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: rgba(255,255,255,0.06);
+  color: #f5f7ff;
+}
+
+
 /* RESPONSIVE */
 @media (max-width: 1100px) {
   .panel {

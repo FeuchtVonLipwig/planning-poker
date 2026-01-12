@@ -16,6 +16,7 @@ const participants = ref<Participant[]>([])
 const selectedCard = ref<string | null>(null)
 const votes = ref<Record<string, string>>({})
 const revealed = ref(false)
+const showVotesModal = ref(false)
 
 const isSpectator = ref(false)
 
@@ -216,9 +217,15 @@ socket.on("votes-updated", (v) => {
   votes.value = v
 })
 
-socket.on("revealed", () => {
-  revealed.value = true
+socket.on("reset", () => {
+  votes.value = {}
+  revealed.value = false
+  selectedCard.value = null
+  cheaters.value = {}
+
+  showVotesModal.value = false
 })
+
 
 socket.on("reset", () => {
   votes.value = {}
@@ -318,6 +325,11 @@ const revealVotes = () => {
   socket.emit("reveal", roomId.value)
 }
 
+const closeVotesModal = () => {
+  showVotesModal.value = false
+  resetVotes()
+}
+
 const resetVotes = () => {
   if (!canReset.value) return
   socket.emit("reset", roomId.value)
@@ -338,6 +350,7 @@ const closeSession = () => {
   votes.value = {}
   selectedCard.value = null
   revealed.value = false
+  showVotesModal.value = false
   // keep spectator preference (localStorage)
   cheaters.value = {}
   pendingRoomFromUrl.value = null
@@ -490,7 +503,7 @@ const copyUrl = async () => {
                 <button class="link-btn" type="button" @click="copyId">
                   <span v-if="copied && copiedWhat === 'id'">✓</span>
                   <span v-else>•</span>
-                  Copy id
+                  Copy ID
                 </button>
               </li>
               <li>
@@ -581,25 +594,35 @@ const copyUrl = async () => {
                 Reset
               </button>
             </div>
+            <!-- MODAL: Votes (opens automatically on reveal) -->
+            <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
+              <div class="modal">
+                <div class="modal-header">
+                  <h3 class="modal-title">Votes</h3>
+                  <button class="modal-close" type="button" @click="closeVotesModal">✕</button>
+                </div>
 
-            <div v-if="revealed" class="card votes-card">
-              <h3>Votes</h3>
+                <!-- Keep your existing Votes card content, unchanged -->
+                <div class="card votes-card">
+                  <ul class="vote-list">
+                    <li v-for="entry in sortedVotes" :key="entry.id" class="vote-row">
+                      <span class="vote-name">
+                        {{ entry.name }}
+                        <span v-if="entry.isCheater" class="inline-cheater">CHEATER</span>
+                      </span>
+                      <span class="vote-value">{{ entry.value }}</span>
+                    </li>
+                  </ul>
 
-              <ul class="vote-list">
-                <li v-for="entry in sortedVotes" :key="entry.id" class="vote-row">
-                  <span class="vote-name">
-                    {{ entry.name }}
-                    <span v-if="entry.isCheater" class="inline-cheater">CHEATER</span>
-                  </span>
-                  <span class="vote-value">{{ entry.value }}</span>
-                </li>
-              </ul>
-
-              <div class="avg-left">
-                <span class="avg-symbol">Ø</span>
-                <span class="avg-number">{{ averageInfo.avgText }}</span>
+                  <div class="avg-left">
+                    <span class="avg-symbol">Ø</span>
+                    <span class="avg-number">{{ averageInfo.avgText }}</span>
+                  </div>
+                </div>
               </div>
             </div>
+            <!-- Optional: keep the inline (non-modal) votes box off entirely -->
+            <!-- (we do nothing else; modal replaces the old revealed box) -->
           </main>
         </div>
 
