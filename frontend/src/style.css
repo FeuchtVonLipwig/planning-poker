@@ -551,6 +551,18 @@ input::placeholder { color: #9aa3b2; }
   color: #f5f7ff;
 }
 
+.panel-left {
+  order: 1;
+}
+
+.panel-right {
+  order: 2;
+}
+
+.middle {
+  order: 3;
+}
+
 
 /* RESPONSIVE */
 @media (max-width: 1100px) {
@@ -559,8 +571,18 @@ input::placeholder { color: #9aa3b2; }
     width: min(92vw, 980px);
     margin: 0.5rem auto;
   }
+
   .middle {
+    order: 1; /* FIRST */
     margin-top: 1rem;
     width: min(92vw, 980px);
+  }
+
+  .panel-left {
+    order: 2; /* SECOND */
+  }
+
+  .panel-right {
+    order: 3; /* LAST */
   }
 }
