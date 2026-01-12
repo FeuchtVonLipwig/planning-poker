@@ -359,6 +359,13 @@ input::placeholder { color: #9aa3b2; }
     0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
+.buttons {
+  display: flex;
+  gap: 0.75rem; /* restores space between buttons */
+  margin-top: 1rem; /* keeps separation from cards above */
+  justify-content: center;
+}
+
 /* Votes list */
 .votes-card { width: 100%; padding: 1rem; }
 .vote-list {
