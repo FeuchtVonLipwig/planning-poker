@@ -304,22 +304,60 @@ input::placeholder { color: #9aa3b2; }
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* Voting cards – real card look */
 .card-btn {
-  min-width: 72px;
-  padding: 0.85rem 1.05rem;
-  border-radius: 12px;
+  width: 76px;
+  height: 108px; /* card aspect ratio */
+  padding: 0;
+  border-radius: 14px;
   border: 1px solid #2a3142;
-  background: #161a22;
-  color: #fff;
+  background:
+    linear-gradient(180deg, #1d2230 0%, #141826 100%);
+  color: #f5f7ff;
+  font-size: 1.6rem;
   font-weight: 900;
   cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
-.card-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Hover = lift like a real card */
+.card-btn:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Selected card */
 .card-btn.selected {
   border-color: #2b68ff;
-  box-shadow: 0 0 0 3px rgba(43,104,255,0.25);
+  box-shadow:
+    0 0 0 3px rgba(43, 104, 255, 0.35),
+    0 14px 30px rgba(0, 0, 0, 0.7);
+  transform: translateY(-6px);
 }
-.buttons { display: flex; gap: 0.75rem; }
+
+/* Disabled cards */
+.card-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.35);
+}
 
 /* Votes list */
 .votes-card { width: 100%; padding: 1rem; }
