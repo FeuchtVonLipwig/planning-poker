@@ -366,6 +366,55 @@ input::placeholder { color: #9aa3b2; }
   justify-content: center;
 }
 
+/* ---------- MODAL ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--card-bg, #1f1f1f);
+  border-radius: 12px;
+  width: min(90vw, 520px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-content {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.modal-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: center;
+}
+
 /* Votes list */
 .votes-card { width: 100%; padding: 1rem; }
 .vote-list {

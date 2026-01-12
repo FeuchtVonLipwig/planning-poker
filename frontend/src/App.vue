@@ -324,6 +324,10 @@ const resetVotes = () => {
   selectedCard.value = null
 }
 
+const closeVotesModal = () => {
+  resetVotes()
+}
+
 const closeSession = () => {
   const oldRoom = roomId.value
 
@@ -490,7 +494,7 @@ const copyUrl = async () => {
                 <button class="link-btn" type="button" @click="copyId">
                   <span v-if="copied && copiedWhat === 'id'">✓</span>
                   <span v-else>•</span>
-                  Copy id
+                  Copy ID
                 </button>
               </li>
               <li>
@@ -509,7 +513,7 @@ const copyUrl = async () => {
               <span>Spectator</span>
             </label>
 
-            <button class="btn btn-ghost" @click="closeSession" type="button">Close Session</button>
+            <button class="btn btn-ghost" @click="closeSession" type="button">Leave Room</button>
           </div>
 
           <!-- RIGHT PANEL -->
@@ -582,18 +586,40 @@ const copyUrl = async () => {
               </button>
             </div>
 
-            <div v-if="revealed" class="card votes-card">
-              <h3>Votes</h3>
+              <!-- VOTES MODAL -->
+              <div v-if="revealed" class="modal-backdrop" @click.self="closeVotesModal">
+                <div class="modal">
+                  <div class="modal-header">
+                    <h3>Votes</h3>
+                    <button class="modal-close" @click="closeVotesModal" type="button">
+                      ✕
+                    </button>
+                  </div>
 
-              <ul class="vote-list">
-                <li v-for="entry in sortedVotes" :key="entry.id" class="vote-row">
-                  <span class="vote-name">
-                    {{ entry.name }}
-                    <span v-if="entry.isCheater" class="inline-cheater">CHEATER</span>
-                  </span>
-                  <span class="vote-value">{{ entry.value }}</span>
-                </li>
-              </ul>
+                  <div class="modal-content">
+                    <ul class="vote-list">
+                      <li v-for="entry in sortedVotes" :key="entry.id" class="vote-row">
+                        <span class="vote-name">
+                          {{ entry.name }}
+                          <span v-if="entry.isCheater" class="inline-cheater">CHEATER</span>
+                        </span>
+                        <span class="vote-value">{{ entry.value }}</span>
+                      </li>
+                    </ul>
+
+                    <div class="avg-left">
+                      <span class="avg-symbol">Ø</span>
+                      <span class="avg-number">{{ averageInfo.avgText }}</span>
+                    </div>
+
+                    <div class="modal-actions">
+                      <button class="btn" @click="closeVotesModal" type="button">
+                        Close & Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div class="avg-left">
                 <span class="avg-symbol">Ø</span>
