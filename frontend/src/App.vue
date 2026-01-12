@@ -592,15 +592,17 @@ const copyUrl = async () => {
                 Reset
               </button>
             </div>
+
             <!-- MODAL: Votes (opens automatically on reveal) -->
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
               <div class="modal">
                 <div class="card votes-card">
-                <div class="modal-header">
-                  <h3 class="modal-title">Votes</h3>
-                </div>
-                <!-- Keep your existing Votes card content, unchanged -->
-                <div class="card votes-card">
+
+                  <!-- MOVE header INSIDE the card -->
+                  <div class="modal-header">
+                    <h3 class="modal-title">Votes</h3>
+                  </div>
+
                   <ul class="vote-list">
                     <li v-for="entry in sortedVotes" :key="entry.id" class="vote-row">
                       <span class="vote-name">
@@ -611,19 +613,23 @@ const copyUrl = async () => {
                     </li>
                   </ul>
 
+                  <!-- Average aligned right -->
                   <div class="avg-right">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>
                   </div>
-                  <!-- NEW: Close button inside the box -->
+
+                  <!-- Close button INSIDE the card -->
                   <div class="modal-footer">
                     <button class="btn" type="button" @click="closeVotesModal">
                       Close
                     </button>
                   </div>
+
                 </div>
               </div>
             </div>
+
             <!-- Optional: keep the inline (non-modal) votes box off entirely -->
             <!-- (we do nothing else; modal replaces the old revealed box) -->
           </main>
