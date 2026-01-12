@@ -268,13 +268,14 @@ input::placeholder { color: #9aa3b2; }
 
 /* MIDDLE */
 .middle {
-  margin: 170px auto 0;
+  margin: 1rem auto 0; /* was 170px */
   width: clamp(620px, 40vw, 980px);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
 }
+
 
 /* STATUS */
 .status { width: 100%; padding: 1rem; }
