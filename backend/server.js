@@ -164,15 +164,19 @@ io.on("connection", (socket) => {
 
     const previous = room.votes[socket.id];
 
-    // if revealed and someone CHANGES an existing vote => cheater
-    if (room.revealed === true && previous !== undefined && previous !== value) {
-      room.cheaters[socket.id] = true;
+    // NEW: if revealed and someone votes (first time OR changes) => cheater
+    if (room.revealed === true) {
+      // voted after reveal (late join / rejoin) OR changed vote after reveal
+      if (previous === undefined || previous !== value) {
+        room.cheaters[socket.id] = true;
+      }
     }
 
     room.votes[socket.id] = value;
 
     emitVotes(roomId);
     emitCheaters(roomId);
+
   });
 
   // --- Reveal Votes ---

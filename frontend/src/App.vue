@@ -568,7 +568,7 @@ const copyUrl = async () => {
               </div>
             </div>
 
-            <h2 class="section-title">Vote</h2>
+            <h2 class="section-title">Pick a card</h2>
 
             <div class="cards">
               <button
