@@ -427,8 +427,15 @@ input::placeholder { color: #9aa3b2; }
   align-items: baseline;
   gap: 0.6rem;
 }
-.avg-symbol { font-weight: 900; color: #cbd3e6; }
-.avg-number { font-weight: 900; color: #f5f7ff; }
+.avg-symbol {
+  color: #cbd3e6;
+  font-weight: 900;
+}
+.avg-number {
+  font-weight: 900;
+  min-width: 3ch;
+  text-align: right;
+}
 
 /* Room ID copy row */
 .room-id-row {
