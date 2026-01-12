@@ -217,13 +217,9 @@ socket.on("votes-updated", (v) => {
   votes.value = v
 })
 
-socket.on("reset", () => {
-  votes.value = {}
-  revealed.value = false
-  selectedCard.value = null
-  cheaters.value = {}
-
-  showVotesModal.value = false
+socket.on("revealed", () => {
+  revealed.value = true
+  showVotesModal.value = true
 })
 
 
@@ -232,6 +228,8 @@ socket.on("reset", () => {
   revealed.value = false
   selectedCard.value = null
   cheaters.value = {}
+  
+  showVotesModal.value = false
 })
 
 socket.on("public-rooms-updated", (rooms: PublicRoom[]) => {
