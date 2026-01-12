@@ -547,7 +547,7 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
-                <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
+                <div v-if="voted.length === 0" class="status-hint">No votes yet</div>
                 <div v-else class="chips">
                   <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
                 </div>
