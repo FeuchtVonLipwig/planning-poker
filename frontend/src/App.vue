@@ -611,7 +611,7 @@ const copyUrl = async () => {
                     </li>
                   </ul>
 
-                  <div class="avg-left">
+                  <div class="avg-right">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>
                   </div>
