@@ -555,7 +555,10 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
-                <div v-if="notVoted.length === 0" class="status-empty status-ok">
+                <div
+                  v-if="notVoted.length === 0 && activeParticipants.length > 0"
+                  class="status-empty status-ok"
+                >
                   Everyone voted
                 </div>
                 <div v-else class="chips">
