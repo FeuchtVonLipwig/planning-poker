@@ -513,6 +513,12 @@ input::placeholder { color: #9aa3b2; }
   margin-bottom: 0.6rem;
 }
 
+.modal-footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
 .modal-title {
   margin: 0;
   font-size: 1.2rem;

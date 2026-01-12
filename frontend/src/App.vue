@@ -228,7 +228,7 @@ socket.on("reset", () => {
   revealed.value = false
   selectedCard.value = null
   cheaters.value = {}
-  
+
   showVotesModal.value = false
 })
 
@@ -597,7 +597,6 @@ const copyUrl = async () => {
               <div class="modal">
                 <div class="modal-header">
                   <h3 class="modal-title">Votes</h3>
-                  <button class="modal-close" type="button" @click="closeVotesModal">✕</button>
                 </div>
 
                 <!-- Keep your existing Votes card content, unchanged -->
@@ -615,6 +614,12 @@ const copyUrl = async () => {
                   <div class="avg-left">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>
+                  </div>
+                  <!-- NEW: Close button inside the box -->
+                  <div class="modal-footer">
+                    <button class="btn" type="button" @click="closeVotesModal">
+                      Close
+                    </button>
                   </div>
                 </div>
               </div>
