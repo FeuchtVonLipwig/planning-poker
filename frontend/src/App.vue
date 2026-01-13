@@ -37,6 +37,14 @@ const copiedWhat = ref<'id' | 'url' | null>(null)
 let copiedTimer: number | null = null
 
 // --------------------
+// Inline Errors
+// --------------------
+const nameError = ref<string | null>(null)
+const createRoomError = ref<string | null>(null)
+const joinRoomError = ref<string | null>(null)
+const serverError = ref<string | null>(null)
+
+// --------------------
 // LocalStorage (remember name + spectator + auto-reveal preference)
 // --------------------
 const NAME_STORAGE_KEY = 'planning_poker_name'
@@ -144,6 +152,27 @@ watch(autoReveal, (val) => {
   }
 })
 
+// Clear inline errors when user edits inputs again
+watch(userName, () => {
+  nameError.value = null
+  serverError.value = null
+})
+watch(newRoomCode, () => {
+  createRoomError.value = null
+  serverError.value = null
+})
+watch(roomId, () => {
+  joinRoomError.value = null
+  serverError.value = null
+})
+watch(step, () => {
+  // when changing screens, clear any old errors
+  nameError.value = null
+  createRoomError.value = null
+  joinRoomError.value = null
+  serverError.value = null
+})
+
 // --------------------
 // Derived
 // --------------------
@@ -178,7 +207,7 @@ const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length
 const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
 const canReset = computed(() => hasAnyVote.value)
 
-// NEW: helper for “everyone is spectator” case
+// helper for “everyone is spectator” case
 const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0)
 
 // Sort votes highest first; non-numeric at bottom
@@ -224,7 +253,6 @@ socket.on("room-created", (id: string) => {
   roomId.value = id
   step.value = 3
   setUrlToRoom(id)
-
   applySpectatorToRoom()
 })
 
@@ -268,7 +296,29 @@ socket.on("room-settings-updated", (settings: { autoReveal?: boolean }) => {
   }
 })
 
-socket.on("error", (msg: string) => alert(msg))
+// Replace browser alerts with inline errors
+socket.on("error", (msg: string) => {
+  const text = String(msg || 'Unknown error')
+
+  // route common errors to the right input
+  if (step.value === 1) {
+    nameError.value = text
+    return
+  }
+
+  if (/room code already exists/i.test(text)) {
+    createRoomError.value = text
+    return
+  }
+
+  if (/room not found/i.test(text)) {
+    joinRoomError.value = text
+    return
+  }
+
+  // fallback
+  serverError.value = text
+})
 
 watch(step, (s) => {
   if (s === 2) socket.emit("get-public-rooms")
@@ -278,10 +328,14 @@ watch(step, (s) => {
 // Actions
 // --------------------
 const acceptName = () => {
-  if (!userName.value.trim()) return alert("Please enter your name")
+  const trimmed = userName.value.trim()
+  if (!trimmed) {
+    nameError.value = "Please enter your name"
+    return
+  }
 
   try {
-    window.localStorage.setItem(NAME_STORAGE_KEY, userName.value.trim())
+    window.localStorage.setItem(NAME_STORAGE_KEY, trimmed)
   } catch {
     // ignore
   }
@@ -289,10 +343,9 @@ const acceptName = () => {
   if (pendingRoomFromUrl.value) {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
-    socket.emit("join-or-create-room", { roomId: id, name: userName.value, autoReveal: autoReveal.value })
+    socket.emit("join-or-create-room", { roomId: id, name: trimmed, autoReveal: autoReveal.value })
     step.value = 3
     setUrlToRoom(id)
-
     applySpectatorToRoom()
     return
   }
@@ -310,10 +363,14 @@ const backFromSessionToName = () => {
 }
 
 const createRoom = () => {
-  if (!newRoomCode.value.trim()) return alert("Enter a room code")
+  const code = newRoomCode.value.trim()
+  if (!code) {
+    createRoomError.value = "Enter a room code"
+    return
+  }
   socket.emit("create-room", {
-    roomCode: newRoomCode.value,
-    name: userName.value,
+    roomCode: code,
+    name: userName.value.trim(),
     isPrivate: isPrivate.value,
     autoReveal: autoReveal.value
   })
@@ -321,9 +378,13 @@ const createRoom = () => {
 
 const joinRoom = (idOverride?: string) => {
   const id = (idOverride ?? roomId.value).trim()
-  if (!id) return alert("Enter room code")
+  if (!id) {
+    joinRoomError.value = "Enter room code"
+    return
+  }
+
   roomId.value = id
-  socket.emit("join-room", { roomId: id, name: userName.value })
+  socket.emit("join-room", { roomId: id, name: userName.value.trim() })
   step.value = 3
   pendingRoomFromUrl.value = id
   setUrlToRoom(id)
@@ -365,10 +426,7 @@ const resetVotes = () => {
 
 const closeSession = () => {
   const oldRoom = roomId.value
-
-  if (oldRoom) {
-    socket.emit("leave-room", { roomId: oldRoom })
-  }
+  if (oldRoom) socket.emit("leave-room", { roomId: oldRoom })
 
   step.value = 2
   roomId.value = ''
@@ -413,7 +471,7 @@ async function copyTextToClipboard(text: string, which: 'id' | 'url') {
       document.body.removeChild(ta)
       setCopied(which)
     } catch {
-      alert("Could not copy to clipboard.")
+      serverError.value = "Could not copy to clipboard."
     }
   }
 }
@@ -446,6 +504,8 @@ const copyUrl = async () => {
 
             <form class="stack" @submit.prevent="acceptName">
               <input v-model="userName" placeholder="Your name" />
+              <div v-if="nameError" class="error-text">{{ nameError }}</div>
+
               <button class="btn" type="submit">Continue</button>
             </form>
           </div>
@@ -465,10 +525,14 @@ const copyUrl = async () => {
               ← Back to name
             </button>
 
+            <!-- Server error (general) -->
+            <div v-if="serverError" class="error-banner">{{ serverError }}</div>
+
             <!-- Create -->
             <form class="stack" @submit.prevent="createRoom">
               <label class="label">Create a room</label>
               <input v-model="newRoomCode" placeholder="New room code" />
+              <div v-if="createRoomError" class="error-text">{{ createRoomError }}</div>
 
               <label class="check-row">
                 <input type="checkbox" v-model="isPrivate" />
@@ -484,6 +548,8 @@ const copyUrl = async () => {
             <form class="stack" @submit.prevent="joinRoom()">
               <label class="label">Join a room</label>
               <input v-model="roomId" placeholder="Existing room code" />
+              <div v-if="joinRoomError" class="error-text">{{ joinRoomError }}</div>
+
               <button class="btn" type="submit">Join Room</button>
             </form>
 
@@ -514,7 +580,7 @@ const copyUrl = async () => {
         </div>
 
         <!-- STEP 3 -->
-      <div v-if="step === 3" class="room-layout">
+        <div v-if="step === 3" class="room-layout">
           <!-- LEFT PANEL -->
           <div class="panel panel-left">
             <div class="room-id-row">
@@ -579,8 +645,7 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
-                <!-- Change #2: match spectator hint color -->
-                <div v-if="voted.length === 0" class="status-empty status-empty">No votes yet</div>
+                <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
                 <div v-else class="chips">
                   <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
                 </div>
@@ -589,9 +654,8 @@ const copyUrl = async () => {
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
 
-                <!-- Change #1: if everyone is spectator, do NOT show "Everyone voted" -->
                 <div v-if="everyoneIsSpectator" class="status-empty status-hint">
-                  <!-- keep this section empty; main hint below will show -->
+                  <!-- intentionally blank; hint shown below -->
                 </div>
 
                 <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
