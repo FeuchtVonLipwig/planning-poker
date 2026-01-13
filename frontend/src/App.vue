@@ -25,8 +25,9 @@ const isPrivate = ref(false) // default = PUBLIC
 type PublicRoom = { roomId: string; users: number }
 const publicRooms = ref<PublicRoom[]>([])
 
-// Room setting (auto reveal)
+// Room settings
 const autoReveal = ref(false)
+const tShirtMode = ref(false)
 
 // Cheaters (current reveal round)
 const cheaters = ref<Record<string, boolean>>({})
@@ -45,18 +46,17 @@ const joinRoomError = ref<string | null>(null)
 const serverError = ref<string | null>(null)
 
 // --------------------
-// LocalStorage (remember name + spectator + auto-reveal preference)
+// LocalStorage
 // --------------------
 const NAME_STORAGE_KEY = 'planning_poker_name'
 const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
 const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
+const TSHIRT_MODE_STORAGE_KEY = 'planning_poker_tshirt_mode'
 
 // --------------------
 // URL helpers
 // --------------------
 const pendingRoomFromUrl = ref<string | null>(null)
-
-// NEW: tracks what the URL implies for bookmarking/copying
 const pendingVisibilityFromUrl = ref<'private' | 'public' | null>(null)
 
 function getRoomIdFromUrl(): string | null {
@@ -109,10 +109,6 @@ function currentRoomUrl(): string {
   return base
 }
 
-/**
- * Apply the locally stored spectator preference to the current room.
- * Safe to call any time after roomId is set and we're in step 3.
- */
 function applySpectatorToRoom() {
   if (!roomId.value) return
   if (isSpectator.value) selectedCard.value = null
@@ -120,35 +116,26 @@ function applySpectatorToRoom() {
 }
 
 onMounted(() => {
-  // restore name
   try {
     const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
     if (saved && !userName.value) userName.value = saved
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // restore spectator preference
   try {
     const savedSpect = window.localStorage.getItem(SPECTATOR_STORAGE_KEY)
-    if (savedSpect !== null) {
-      isSpectator.value = savedSpect === 'true'
-    }
-  } catch {
-    // ignore
-  }
+    if (savedSpect !== null) isSpectator.value = savedSpect === 'true'
+  } catch {}
 
-  // restore auto-reveal preference (default for NEW rooms)
   try {
     const savedAuto = window.localStorage.getItem(AUTO_REVEAL_STORAGE_KEY)
-    if (savedAuto !== null) {
-      autoReveal.value = savedAuto === 'true'
-    }
-  } catch {
-    // ignore
-  }
+    if (savedAuto !== null) autoReveal.value = savedAuto === 'true'
+  } catch {}
 
-  // URL room detection (+ private/public param)
+  try {
+    const savedTs = window.localStorage.getItem(TSHIRT_MODE_STORAGE_KEY)
+    if (savedTs !== null) tShirtMode.value = savedTs === 'true'
+  } catch {}
+
   const rid = getRoomIdFromUrl()
   pendingVisibilityFromUrl.value = getVisibilityFromUrl()
 
@@ -157,7 +144,6 @@ onMounted(() => {
     roomId.value = rid
   }
 
-  // Handle back/forward navigation
   window.addEventListener('popstate', () => {
     const newRid = getRoomIdFromUrl()
     pendingRoomFromUrl.value = newRid
@@ -166,37 +152,28 @@ onMounted(() => {
   })
 })
 
-// Persist spectator preference whenever the checkbox changes
 watch(isSpectator, (val) => {
   try {
     window.localStorage.setItem(SPECTATOR_STORAGE_KEY, String(!!val))
-  } catch {
-    // ignore
-  }
+  } catch {}
 })
 
-// Persist auto-reveal preference (this is the user's default for creating rooms)
 watch(autoReveal, (val) => {
   try {
     window.localStorage.setItem(AUTO_REVEAL_STORAGE_KEY, String(!!val))
-  } catch {
-    // ignore
-  }
+  } catch {}
+})
+
+watch(tShirtMode, (val) => {
+  try {
+    window.localStorage.setItem(TSHIRT_MODE_STORAGE_KEY, String(!!val))
+  } catch {}
 })
 
 // Clear inline errors when user edits inputs again
-watch(userName, () => {
-  nameError.value = null
-  serverError.value = null
-})
-watch(newRoomCode, () => {
-  createRoomError.value = null
-  serverError.value = null
-})
-watch(roomId, () => {
-  joinRoomError.value = null
-  serverError.value = null
-})
+watch(userName, () => { nameError.value = null; serverError.value = null })
+watch(newRoomCode, () => { createRoomError.value = null; serverError.value = null })
+watch(roomId, () => { joinRoomError.value = null; serverError.value = null })
 watch(step, () => {
   nameError.value = null
   createRoomError.value = null
@@ -238,15 +215,26 @@ const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length
 const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
 const canReset = computed(() => hasAnyVote.value)
 
-// helper for “everyone is spectator” case
 const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0)
 
-// Sort votes highest first; non-numeric at bottom
+const cardOptions = computed(() => {
+  return tShirtMode.value
+    ? ['XS', 'S', 'M', 'L', 'XL']
+    : ['1', '2', '3', '5', '8', '13', '20', '40', '100', '?']
+})
+
+function valueToNumber(v: string): number {
+  const map: Record<string, number> = { XS: 1, S: 2, M: 3, L: 4, XL: 5 }
+  if (map[v] !== undefined) return map[v]
+  const n = Number(v)
+  return Number.isFinite(n) ? n : Number.NaN
+}
+
 const sortedVotes = computed(() => {
   const vmap = activeVotesMap.value
   const entries = Object.entries(vmap).map(([id, value]) => {
     const name = participants.value.find(p => p.id === id)?.name || id
-    const num = Number(value)
+    const num = valueToNumber(value)
     const isNumeric = Number.isFinite(num)
     const isCheater = !!cheaters.value[id]
     return { id, name, value, isNumeric, num, isCheater }
@@ -262,10 +250,9 @@ const sortedVotes = computed(() => {
   return entries
 })
 
-// Average of numeric votes only
 const averageInfo = computed(() => {
   const nums = Object.values(activeVotesMap.value || {})
-    .map(v => Number(v))
+    .map(valueToNumber)
     .filter(n => Number.isFinite(n))
 
   if (nums.length === 0) return { avgText: 'N/A', count: 0 }
@@ -284,7 +271,6 @@ socket.on("room-created", (id: string) => {
   roomId.value = id
   step.value = 3
 
-  // If user created a private room, include ?private=true in the URL
   pendingVisibilityFromUrl.value = isPrivate.value ? 'private' : null
   setUrlToRoom(id, pendingVisibilityFromUrl.value)
 
@@ -293,16 +279,13 @@ socket.on("room-created", (id: string) => {
 
 socket.on("users-updated", (users: any[]) => {
   participants.value = users
-
   const me = participants.value.find(p => p.id === socket.id)
   if (me && typeof me.spectator === 'boolean') {
     isSpectator.value = !!me.spectator
   }
 })
 
-socket.on("votes-updated", (v) => {
-  votes.value = v
-})
+socket.on("votes-updated", (v) => { votes.value = v })
 
 socket.on("revealed", () => {
   revealed.value = true
@@ -325,35 +308,21 @@ socket.on("cheaters-updated", (c: Record<string, boolean>) => {
   cheaters.value = c || {}
 })
 
-socket.on("room-settings-updated", (settings: { autoReveal?: boolean }) => {
-  if (typeof settings?.autoReveal === 'boolean') {
-    autoReveal.value = settings.autoReveal
-  }
+socket.on("room-settings-updated", (settings: { autoReveal?: boolean; tShirtMode?: boolean }) => {
+  if (typeof settings?.autoReveal === 'boolean') autoReveal.value = settings.autoReveal
+  if (typeof settings?.tShirtMode === 'boolean') tShirtMode.value = settings.tShirtMode
 })
 
-// Replace browser alerts with inline errors
 socket.on("error", (msg: string) => {
   const text = String(msg || 'Unknown error')
 
-  if (step.value === 1) {
-    nameError.value = text
-    return
-  }
-
-  if (/room code already exists/i.test(text)) {
-    createRoomError.value = text
-    return
-  }
-
-  if (/room not found/i.test(text)) {
-    joinRoomError.value = text
-    return
-  }
+  if (step.value === 1) { nameError.value = text; return }
+  if (/room code already exists/i.test(text)) { createRoomError.value = text; return }
+  if (/room not found/i.test(text)) { joinRoomError.value = text; return }
 
   serverError.value = text
 })
 
-// Refresh public rooms list on entering Session screen
 watch(step, (s) => {
   if (s === 2) socket.emit("get-public-rooms")
 })
@@ -363,18 +332,10 @@ watch(step, (s) => {
 // --------------------
 const acceptName = () => {
   const trimmed = userName.value.trim()
-  if (!trimmed) {
-    nameError.value = "Please enter your name"
-    return
-  }
+  if (!trimmed) { nameError.value = "Please enter your name"; return }
 
-  try {
-    window.localStorage.setItem(NAME_STORAGE_KEY, trimmed)
-  } catch {
-    // ignore
-  }
+  try { window.localStorage.setItem(NAME_STORAGE_KEY, trimmed) } catch {}
 
-  // If URL has /room/<id>, go directly to room
   if (pendingRoomFromUrl.value) {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
@@ -383,6 +344,7 @@ const acceptName = () => {
       roomId: id,
       name: trimmed,
       autoReveal: autoReveal.value,
+      tShirtMode: tShirtMode.value,
       isPrivate: pendingVisibilityFromUrl.value === 'private',
       isPublic: pendingVisibilityFromUrl.value === 'public'
     })
@@ -409,31 +371,26 @@ const backFromSessionToName = () => {
 
 const createRoom = () => {
   const code = newRoomCode.value.trim()
-  if (!code) {
-    createRoomError.value = "Enter a room code"
-    return
-  }
+  if (!code) { createRoomError.value = "Enter a room code"; return }
+
   socket.emit("create-room", {
     roomCode: code,
     name: userName.value.trim(),
     isPrivate: isPrivate.value,
-    autoReveal: autoReveal.value
+    autoReveal: autoReveal.value,
+    tShirtMode: tShirtMode.value
   })
 }
 
 const joinRoom = (idOverride?: string) => {
   const id = (idOverride ?? roomId.value).trim()
-  if (!id) {
-    joinRoomError.value = "Enter room code"
-    return
-  }
+  if (!id) { joinRoomError.value = "Enter room code"; return }
 
   roomId.value = id
   socket.emit("join-room", { roomId: id, name: userName.value.trim() })
   step.value = 3
   pendingRoomFromUrl.value = id
 
-  // Joining by code should not force private/public bookmarking param
   pendingVisibilityFromUrl.value = null
   setUrlToRoom(id, null)
 
@@ -448,6 +405,17 @@ const setSpectator = () => {
 const setAutoReveal = () => {
   if (!roomId.value) return
   socket.emit("set-auto-reveal", { roomId: roomId.value, autoReveal: autoReveal.value })
+}
+
+// ✅ UPDATED: toggling mode resets the round for everyone
+const setTShirtMode = () => {
+  if (!roomId.value) return
+
+  // local UX: clear current selection / close modal immediately
+  selectedCard.value = null
+  showVotesModal.value = false
+
+  socket.emit("set-tshirt-mode", { roomId: roomId.value, tShirtMode: tShirtMode.value })
 }
 
 const voteCard = (value: string) => {
@@ -474,10 +442,7 @@ const resetVotes = () => {
 
 const closeSession = () => {
   const oldRoom = roomId.value
-
-  if (oldRoom) {
-    socket.emit("leave-room", { roomId: oldRoom })
-  }
+  if (oldRoom) socket.emit("leave-room", { roomId: oldRoom })
 
   step.value = 2
   roomId.value = ''
@@ -576,7 +541,6 @@ const copyUrl = async () => {
               ← Back to name
             </button>
 
-            <!-- Server error (general) -->
             <div v-if="serverError" class="error-banner">{{ serverError }}</div>
 
             <!-- Create -->
@@ -661,6 +625,12 @@ const copyUrl = async () => {
               <span>Auto-reveal</span>
             </label>
 
+            <!-- T-Shirt mode (resets votes on toggle) -->
+            <label class="spectator-row">
+              <input type="checkbox" v-model="tShirtMode" @change="setTShirtMode" />
+              <span>T-Shirt mode</span>
+            </label>
+
             <p><strong>You:</strong> {{ userName }}</p>
 
             <label class="spectator-row">
@@ -704,9 +674,7 @@ const copyUrl = async () => {
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
 
-                <div v-if="everyoneIsSpectator" class="status-empty status-hint">
-                  <!-- keep this section empty; main hint below will show -->
-                </div>
+                <div v-if="everyoneIsSpectator" class="status-empty status-hint"></div>
 
                 <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
                   Everyone voted
@@ -726,7 +694,7 @@ const copyUrl = async () => {
 
             <div class="cards">
               <button
-                v-for="c in ['1','2','3','5','8','13','20','40','100','?']"
+                v-for="c in cardOptions"
                 :key="c"
                 class="card-btn"
                 :class="{ selected: selectedCard === c }"

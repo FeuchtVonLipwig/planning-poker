@@ -69,6 +69,15 @@ function maybeAutoReveal(roomId) {
   emitCheaters(roomId);
 }
 
+function emitRoomSettings(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  io.to(roomId).emit("room-settings-updated", {
+    autoReveal: !!room.autoReveal,
+    tShirtMode: !!room.tShirtMode
+  });
+}
+
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
@@ -77,7 +86,7 @@ io.on("connection", (socket) => {
   });
 
   // --- Create Room ---
-  socket.on("create-room", ({ roomCode, name, isPrivate, autoReveal }) => {
+  socket.on("create-room", ({ roomCode, name, isPrivate, autoReveal, tShirtMode }) => {
     const roomId = roomCode || Math.random().toString(36).substring(2, 8);
 
     if (rooms[roomId]) {
@@ -91,6 +100,7 @@ io.on("connection", (socket) => {
       revealed: false,
       public: !isPrivate,
       autoReveal: !!autoReveal,
+      tShirtMode: !!tShirtMode,
       cheaters: {}
     };
 
@@ -102,8 +112,7 @@ io.on("connection", (socket) => {
     emitVotes(roomId);
     emitCheaters(roomId);
 
-    io.to(roomId).emit("room-settings-updated", { autoReveal: rooms[roomId].autoReveal });
-
+    emitRoomSettings(roomId);
     broadcastPublicRooms();
   });
 
@@ -120,15 +129,12 @@ io.on("connection", (socket) => {
     emitVotes(roomId);
     emitCheaters(roomId);
 
-    io.to(roomId).emit("room-settings-updated", { autoReveal: rooms[roomId].autoReveal });
-
+    emitRoomSettings(roomId);
     broadcastPublicRooms();
   });
 
   // --- Join-or-create via URL ---
-  // If room does NOT exist yet, allow creating it as private/public based on URL param.
-  // IMPORTANT: if room already exists, these params are ignored (do not change it).
-  socket.on("join-or-create-room", ({ roomId, name, autoReveal, isPrivate, isPublic }) => {
+  socket.on("join-or-create-room", ({ roomId, name, autoReveal, tShirtMode, isPrivate, isPublic }) => {
     if (!roomId || !String(roomId).trim()) {
       socket.emit("error", "Room not found");
       return;
@@ -137,18 +143,18 @@ io.on("connection", (socket) => {
     const id = String(roomId).trim();
 
     if (!rooms[id]) {
-      // Decide public/private only on creation
-      // Priority: explicit isPrivate/isPublic; default => public
-      let makePublic = true;
-      if (isPrivate === true) makePublic = false;
-      else if (isPublic === true) makePublic = true;
+      const makePrivate = !!isPrivate;
+      const makePublic = !!isPublic;
+
+      const isRoomPublic = makePrivate ? false : true;
 
       rooms[id] = {
         users: [],
         votes: {},
         revealed: false,
-        public: makePublic,
+        public: isRoomPublic,
         autoReveal: !!autoReveal,
+        tShirtMode: !!tShirtMode,
         cheaters: {}
       };
     }
@@ -162,8 +168,7 @@ io.on("connection", (socket) => {
     emitVotes(id);
     emitCheaters(id);
 
-    io.to(id).emit("room-settings-updated", { autoReveal: rooms[id].autoReveal });
-
+    emitRoomSettings(id);
     broadcastPublicRooms();
   });
 
@@ -172,10 +177,28 @@ io.on("connection", (socket) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].autoReveal = !!autoReveal;
-
-    io.to(roomId).emit("room-settings-updated", { autoReveal: rooms[roomId].autoReveal });
+    emitRoomSettings(roomId);
 
     maybeAutoReveal(roomId);
+  });
+
+  // ✅ UPDATED: update room tShirtMode setting + reset current round
+  socket.on("set-tshirt-mode", ({ roomId, tShirtMode }) => {
+    if (!rooms[roomId]) return;
+
+    const room = rooms[roomId];
+    room.tShirtMode = !!tShirtMode;
+
+    // Reset current round so votes never mix between modes
+    room.votes = {};
+    room.revealed = false;
+    room.cheaters = {};
+
+    // Inform clients
+    io.to(roomId).emit("reset");
+    emitVotes(roomId);
+    emitCheaters(roomId);
+    emitRoomSettings(roomId);
   });
 
   // --- Toggle spectator ---
@@ -211,7 +234,6 @@ io.on("connection", (socket) => {
 
     const previous = room.votes[socket.id];
 
-    // If votes are revealed, any voting is cheating (first-time or change)
     if (room.revealed === true) {
       if (previous === undefined || previous !== value) {
         room.cheaters[socket.id] = true;
@@ -230,6 +252,7 @@ io.on("connection", (socket) => {
   socket.on("reveal", (roomId) => {
     if (!rooms[roomId]) return;
     rooms[roomId].revealed = true;
+
     rooms[roomId].cheaters = {};
 
     io.to(roomId).emit("revealed");
