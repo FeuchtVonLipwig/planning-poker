@@ -693,11 +693,7 @@ const copyUrl = async () => {
                     <span v-for="p in notVoted" :key="p.id" class="chip chip-waiting">{{ p.name }}</span>
                   </div>
                 </div>
-              </div>
 
-              <div v-if="everyoneIsSpectator" class="status-hint">
-                Everyone is a spectator (no votes will be counted).
-              </div>
             </div>
 
             <h2 class="section-title">Pick a card</h2>
