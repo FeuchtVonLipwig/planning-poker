@@ -90,7 +90,7 @@ io.on("connection", (socket) => {
       users: [],
       votes: {},
       revealed: false,
-      public: !isPrivate, // public default
+      public: !isPrivate,       // public default
       autoReveal: !!autoReveal, // NEW
       cheaters: {}
     };
@@ -104,7 +104,7 @@ io.on("connection", (socket) => {
     emitVotes(roomId);
     emitCheaters(roomId);
 
-    // NEW: send room setting to everyone in the room
+    // send room setting to everyone in the room
     io.to(roomId).emit("room-settings-updated", { autoReveal: rooms[roomId].autoReveal });
 
     broadcastPublicRooms();
@@ -124,14 +124,16 @@ io.on("connection", (socket) => {
     emitVotes(roomId);
     emitCheaters(roomId);
 
-    // NEW: send room setting to everyone in the room
+    // send room setting to everyone in the room
     io.to(roomId).emit("room-settings-updated", { autoReveal: rooms[roomId].autoReveal });
 
     broadcastPublicRooms();
   });
 
-  // --- NEW: Join-or-create via URL ---
-  socket.on("join-or-create-room", ({ roomId, name, autoReveal }) => {
+  // --- Join-or-create via URL ---
+  // NEW: if room does NOT exist yet, allow creating it as private based on URL param
+  // IMPORTANT: if room already exists, this param is ignored (does not change public/private)
+  socket.on("join-or-create-room", ({ roomId, name, autoReveal, isPrivate }) => {
     if (!roomId || !String(roomId).trim()) {
       socket.emit("error", "Room not found");
       return;
@@ -139,14 +141,14 @@ io.on("connection", (socket) => {
 
     const id = String(roomId).trim();
 
-    // Create if missing => PUBLIC room
+    // Create if missing
     if (!rooms[id]) {
       rooms[id] = {
         users: [],
         votes: {},
         revealed: false,
-        public: true, // IMPORTANT: public by default for URL-created rooms
-        autoReveal: !!autoReveal, // NEW: only used when creating
+        public: !isPrivate,      // NEW: created as private when URL param says so
+        autoReveal: !!autoReveal, // only used when creating
         cheaters: {}
       };
     }
@@ -161,13 +163,13 @@ io.on("connection", (socket) => {
     emitVotes(id);
     emitCheaters(id);
 
-    // NEW: send room setting to everyone in the room
+    // send room setting to everyone in the room
     io.to(id).emit("room-settings-updated", { autoReveal: rooms[id].autoReveal });
 
     broadcastPublicRooms();
   });
 
-  // NEW: update room autoReveal setting
+  // update room autoReveal setting
   socket.on("set-auto-reveal", ({ roomId, autoReveal }) => {
     if (!rooms[roomId]) return;
 
@@ -198,7 +200,7 @@ io.on("connection", (socket) => {
     emitVotes(roomId);
     emitCheaters(roomId);
 
-    // NEW: spectator changes can complete the vote set
+    // spectator changes can complete the vote set
     maybeAutoReveal(roomId);
   });
 
@@ -215,7 +217,7 @@ io.on("connection", (socket) => {
 
     const previous = room.votes[socket.id];
 
-    // NEW: If votes are revealed, any voting is cheating:
+    // If votes are revealed, any voting is cheating:
     // - voting for the first time while revealed (late join / rejoin)
     // - changing an existing vote while revealed
     if (room.revealed === true) {
@@ -229,7 +231,7 @@ io.on("connection", (socket) => {
     emitVotes(roomId);
     emitCheaters(roomId);
 
-    // NEW: auto reveal if enabled and everyone voted
+    // auto reveal if enabled and everyone voted
     maybeAutoReveal(roomId);
   });
 
@@ -260,7 +262,7 @@ io.on("connection", (socket) => {
     emitCheaters(roomId);
   });
 
-  // --- Leave Room (when clicking "Close Session") ---
+  // --- Leave Room (when clicking "Leave Room") ---
   socket.on("leave-room", ({ roomId }) => {
     if (!rooms[roomId]) return;
 
@@ -283,7 +285,6 @@ io.on("connection", (socket) => {
       room.cheaters = {};
       // room.public / autoReveal stay as-is
     } else {
-      // Otherwise update remaining users
       emitUsers(roomId);
       emitVotes(roomId);
       emitCheaters(roomId);

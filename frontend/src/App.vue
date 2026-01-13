@@ -55,6 +55,7 @@ const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
 // URL helpers
 // --------------------
 const pendingRoomFromUrl = ref<string | null>(null)
+const pendingPrivateFromUrl = ref(false)
 
 function getRoomIdFromUrl(): string | null {
   const path = window.location.pathname || '/'
@@ -63,21 +64,40 @@ function getRoomIdFromUrl(): string | null {
   return decodeURIComponent(match[1])
 }
 
-function setUrlToRoom(id: string) {
-  const next = `/room/${encodeURIComponent(id)}`
-  if (window.location.pathname !== next) {
+// supports: ?Prive=true, ?prive=true, ?private=true
+function getIsPrivateFromUrl(): boolean {
+  try {
+    const sp = new URLSearchParams(window.location.search)
+    const v =
+      sp.get('Prive') ??
+      sp.get('prive') ??
+      sp.get('private')
+    if (v === null) return false
+    return v === 'true' || v === '1' || v === 'yes'
+  } catch {
+    return false
+  }
+}
+
+function setUrlToRoom(id: string, makePrivate: boolean) {
+  const base = `/room/${encodeURIComponent(id)}`
+  const next = makePrivate ? `${base}?Prive=true` : base
+  const current = `${window.location.pathname}${window.location.search || ''}`
+
+  if (current !== next) {
     window.history.pushState({}, '', next)
   }
 }
 
 function setUrlHome() {
-  if (window.location.pathname !== '/') {
+  if (window.location.pathname !== '/' || window.location.search) {
     window.history.pushState({}, '', '/')
   }
 }
 
 function currentRoomUrl(): string {
-  return `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
+  const base = `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
+  return pendingPrivateFromUrl.value ? `${base}?Prive=true` : base
 }
 
 /**
@@ -119,8 +139,10 @@ onMounted(() => {
     // ignore
   }
 
-  // URL room detection
+  // URL room detection (+ private param)
   const rid = getRoomIdFromUrl()
+  pendingPrivateFromUrl.value = getIsPrivateFromUrl()
+
   if (rid) {
     pendingRoomFromUrl.value = rid
     roomId.value = rid
@@ -130,6 +152,7 @@ onMounted(() => {
   window.addEventListener('popstate', () => {
     const newRid = getRoomIdFromUrl()
     pendingRoomFromUrl.value = newRid
+    pendingPrivateFromUrl.value = getIsPrivateFromUrl()
     if (newRid) roomId.value = newRid
   })
 })
@@ -166,7 +189,6 @@ watch(roomId, () => {
   serverError.value = null
 })
 watch(step, () => {
-  // when changing screens, clear any old errors
   nameError.value = null
   createRoomError.value = null
   joinRoomError.value = null
@@ -252,7 +274,12 @@ const averageInfo = computed(() => {
 socket.on("room-created", (id: string) => {
   roomId.value = id
   step.value = 3
-  setUrlToRoom(id)
+
+  // If user created a private room, include ?Prive=true in the URL
+  // Also store this so copyUrl() includes it.
+  pendingPrivateFromUrl.value = !!isPrivate.value
+  setUrlToRoom(id, pendingPrivateFromUrl.value)
+
   applySpectatorToRoom()
 })
 
@@ -300,7 +327,6 @@ socket.on("room-settings-updated", (settings: { autoReveal?: boolean }) => {
 socket.on("error", (msg: string) => {
   const text = String(msg || 'Unknown error')
 
-  // route common errors to the right input
   if (step.value === 1) {
     nameError.value = text
     return
@@ -316,7 +342,6 @@ socket.on("error", (msg: string) => {
     return
   }
 
-  // fallback
   serverError.value = text
 })
 
@@ -340,12 +365,23 @@ const acceptName = () => {
     // ignore
   }
 
+  // If URL has /room/<id>, go directly to room
   if (pendingRoomFromUrl.value) {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
-    socket.emit("join-or-create-room", { roomId: id, name: trimmed, autoReveal: autoReveal.value })
+
+    // IMPORTANT:
+    // If the room doesn't exist yet, server should create it as private if URL param says so.
+    socket.emit("join-or-create-room", {
+      roomId: id,
+      name: trimmed,
+      autoReveal: autoReveal.value,
+      isPrivate: pendingPrivateFromUrl.value
+    })
+
     step.value = 3
-    setUrlToRoom(id)
+    setUrlToRoom(id, pendingPrivateFromUrl.value)
+
     applySpectatorToRoom()
     return
   }
@@ -359,6 +395,7 @@ const backFromSessionToName = () => {
   newRoomCode.value = ''
   step.value = 1
   pendingRoomFromUrl.value = null
+  pendingPrivateFromUrl.value = false
   setUrlHome()
 }
 
@@ -387,7 +424,11 @@ const joinRoom = (idOverride?: string) => {
   socket.emit("join-room", { roomId: id, name: userName.value.trim() })
   step.value = 3
   pendingRoomFromUrl.value = id
-  setUrlToRoom(id)
+
+  // Joining by code should not force private mode.
+  // (If you opened via bookmark URL, that flow uses acceptName() above.)
+  pendingPrivateFromUrl.value = false
+  setUrlToRoom(id, false)
 
   applySpectatorToRoom()
 }
@@ -437,6 +478,7 @@ const closeSession = () => {
   showVotesModal.value = false
   cheaters.value = {}
   pendingRoomFromUrl.value = null
+  pendingPrivateFromUrl.value = false
   setUrlHome()
   socket.emit("get-public-rooms")
 }
