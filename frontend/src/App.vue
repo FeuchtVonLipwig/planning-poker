@@ -649,8 +649,11 @@ const copyUrl = async () => {
                 <span class="dot" :class="{ spect: !!p.spectator }"></span>
                 <span class="panel-name">{{ p.name }}</span>
 
-                <span v-if="p.spectator" class="badge">SPECTATOR</span>
-                <span v-else-if="cheaters[p.id]" class="badge badge-cheater">CHEATER</span>
+                <!-- ✅ reserve space so row doesn't shift when badge appears -->
+                <span class="badge-slot">
+                  <span v-if="p.spectator" class="badge">SPECTATOR</span>
+                  <span v-else-if="cheaters[p.id]" class="badge badge-cheater">CHEATER</span>
+                </span>
               </li>
             </ul>
           </div>
@@ -665,23 +668,30 @@ const copyUrl = async () => {
 
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
-                <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
-                <div v-else class="chips">
-                  <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
+
+                <!-- ✅ reserve one row height -->
+                <div class="status-body">
+                  <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
+                  <div v-else class="chips">
+                    <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
+                  </div>
                 </div>
               </div>
 
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
 
-                <div v-if="everyoneIsSpectator" class="status-empty status-hint"></div>
+                <!-- ✅ reserve one row height -->
+                <div class="status-body">
+                  <div v-if="everyoneIsSpectator" class="status-empty status-hint"></div>
 
-                <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
-                  Everyone voted
-                </div>
+                  <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
+                    Everyone voted
+                  </div>
 
-                <div v-else class="chips">
-                  <span v-for="p in notVoted" :key="p.id" class="chip chip-waiting">{{ p.name }}</span>
+                  <div v-else class="chips">
+                    <span v-for="p in notVoted" :key="p.id" class="chip chip-waiting">{{ p.name }}</span>
+                  </div>
                 </div>
               </div>
 

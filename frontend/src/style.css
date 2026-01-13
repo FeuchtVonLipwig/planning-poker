@@ -288,6 +288,14 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
+/* ✅ Reserve a badge area so the row doesn't "jump" */
+.badge-slot {
+  min-width: 92px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 /* MIDDLE */
 .middle {
   margin: 1rem auto 0; /* was 170px */
@@ -307,6 +315,13 @@ input::placeholder { color: #9aa3b2; }
 .status-empty { font-weight: 700; color: #f5f7ff; }
 .status-ok { color: #a7f3d0; }
 .status-hint { margin-top: 0.8rem; color: #9aa3b2; font-weight: 700; }
+
+/* ✅ Reserve one row height for text OR one row of chips */
+.status-body {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
 
 /* CHIPS */
 .chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
