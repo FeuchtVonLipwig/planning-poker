@@ -238,6 +238,7 @@ const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length
 const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
 const canReset = computed(() => hasAnyVote.value)
 
+// helper for “everyone is spectator” case
 const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0)
 
 // Sort votes highest first; non-numeric at bottom
@@ -265,7 +266,7 @@ const sortedVotes = computed(() => {
 const averageInfo = computed(() => {
   const nums = Object.values(activeVotesMap.value || {})
     .map(v => Number(v))
-    .filter(n => Number.isFiniten)
+    .filter(n => Number.isFinite(n))
 
   if (nums.length === 0) return { avgText: 'N/A', count: 0 }
 
@@ -352,6 +353,7 @@ socket.on("error", (msg: string) => {
   serverError.value = text
 })
 
+// Refresh public rooms list on entering Session screen
 watch(step, (s) => {
   if (s === 2) socket.emit("get-public-rooms")
 })
@@ -377,8 +379,7 @@ const acceptName = () => {
     const id = pendingRoomFromUrl.value.trim()
     roomId.value = id
 
-    // If room doesn't exist yet, server uses URL param to create as private/public.
-    socket.emit("join-or-createroom", {
+    socket.emit("join-or-create-room", {
       roomId: id,
       name: trimmed,
       autoReveal: autoReveal.value,
@@ -412,7 +413,7 @@ const createRoom = () => {
     createRoomError.value = "Enter a room code"
     return
   }
-  socket.emit("createroom", {
+  socket.emit("create-room", {
     roomCode: code,
     name: userName.value.trim(),
     isPrivate: isPrivate.value,
@@ -473,7 +474,10 @@ const resetVotes = () => {
 
 const closeSession = () => {
   const oldRoom = roomId.value
-  if (oldRoom) socket.emit("leaveroom", { roomId: oldRoom })
+
+  if (oldRoom) {
+    socket.emit("leave-room", { roomId: oldRoom })
+  }
 
   step.value = 2
   roomId.value = ''
@@ -553,7 +557,6 @@ const copyUrl = async () => {
             <form class="stack" @submit.prevent="acceptName">
               <input v-model="userName" placeholder="Your name" />
               <div v-if="nameError" class="error-text">{{ nameError }}</div>
-
               <button class="btn" type="submit">Continue</button>
             </form>
           </div>
@@ -597,7 +600,6 @@ const copyUrl = async () => {
               <label class="label">Join a room</label>
               <input v-model="roomId" placeholder="Existing room code" />
               <div v-if="joinRoomError" class="error-text">{{ joinRoomError }}</div>
-
               <button class="btn" type="submit">Join Room</button>
             </form>
 
@@ -703,7 +705,7 @@ const copyUrl = async () => {
                 <div class="status-subtitle">Waiting for</div>
 
                 <div v-if="everyoneIsSpectator" class="status-empty status-hint">
-                  <!-- intentionally blank; hint shown below -->
+                  <!-- keep this section empty; main hint below will show -->
                 </div>
 
                 <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
