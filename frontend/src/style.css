@@ -283,7 +283,7 @@ input::placeholder { color: #9aa3b2; }
 .status-title, .status-count { font-weight: 900; }
 .status-count { color: #cbd3e6; }
 .status-subtitle { font-weight: 800; color: #cbd3e6; margin-bottom: 0.4rem; }
-.status-empty { font-weight: 700; color: #cbd3e6; }
+.status-empty { font-weight: 700; color: #f5f7ff; }
 .status-ok { color: #a7f3d0; }
 .status-hint { margin-top: 0.8rem; color: #9aa3b2; font-weight: 700; }
 
