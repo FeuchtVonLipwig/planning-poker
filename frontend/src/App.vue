@@ -407,7 +407,7 @@ const setAutoReveal = () => {
   socket.emit("set-auto-reveal", { roomId: roomId.value, autoReveal: autoReveal.value })
 }
 
-// ✅ UPDATED: toggling mode resets the round for everyone
+// ✅ toggling mode resets the round for everyone
 const setTShirtMode = () => {
   if (!roomId.value) return
 
@@ -649,11 +649,8 @@ const copyUrl = async () => {
                 <span class="dot" :class="{ spect: !!p.spectator }"></span>
                 <span class="panel-name">{{ p.name }}</span>
 
-                <!-- ✅ reserve space so row doesn't shift when badge appears -->
-                <span class="badge-slot">
-                  <span v-if="p.spectator" class="badge">SPECTATOR</span>
-                  <span v-else-if="cheaters[p.id]" class="badge badge-cheater">CHEATER</span>
-                </span>
+                <span v-if="p.spectator" class="badge">SPECTATOR</span>
+                <span v-else-if="cheaters[p.id]" class="badge badge-cheater">CHEATER</span>
               </li>
             </ul>
           </div>
@@ -669,7 +666,6 @@ const copyUrl = async () => {
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
 
-                <!-- ✅ reserve one row height -->
                 <div class="status-body">
                   <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
                   <div v-else class="chips">
@@ -678,12 +674,14 @@ const copyUrl = async () => {
                 </div>
               </div>
 
+              <!-- ✅ FIXED: spectator hint now uses the reserved body (no extra gap) -->
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
 
-                <!-- ✅ reserve one row height -->
                 <div class="status-body">
-                  <div v-if="everyoneIsSpectator" class="status-empty status-hint"></div>
+                  <div v-if="everyoneIsSpectator" class="status-empty status-hint">
+                    Everyone is a spectator (no votes will be counted).
+                  </div>
 
                   <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
                     Everyone voted
@@ -693,7 +691,7 @@ const copyUrl = async () => {
                     <span v-for="p in notVoted" :key="p.id" class="chip chip-waiting">{{ p.name }}</span>
                   </div>
                 </div>
-
+              </div>
             </div>
 
             <h2 class="section-title">Pick a card</h2>
