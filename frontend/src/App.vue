@@ -514,7 +514,7 @@ const copyUrl = async () => {
         </div>
 
         <!-- STEP 3 -->
-        <div v-if="step === 3">
+      <div v-if="step === 3" class="room-layout">
           <!-- LEFT PANEL -->
           <div class="panel panel-left">
             <div class="room-id-row">
@@ -580,7 +580,7 @@ const copyUrl = async () => {
               <div class="status-section">
                 <div class="status-subtitle">Voted</div>
                 <!-- Change #2: match spectator hint color -->
-                <div v-if="voted.length === 0" class="status-empty status-hint">No votes yet</div>
+                <div v-if="voted.length === 0" class="status-empty status-empty">No votes yet</div>
                 <div v-else class="chips">
                   <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
                 </div>
