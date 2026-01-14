@@ -321,10 +321,40 @@ io.on("connection", (socket) => {
   });
 });
 
-// Serve frontend static files
+// ---------------------------
+// Static frontend + caching fix
+// ---------------------------
 const distPath = path.join(__dirname, "../frontend/dist");
-app.use(express.static(distPath));
-app.get("*", (_, res) => {
+
+// 1) Serve static files with proper cache headers:
+//    - index.html: never cache (prevents stale HTML after deploy)
+//    - /assets/*: cache forever (Vite hashed files)
+app.use(express.static(distPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith("index.html")) {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      return;
+    }
+
+    if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return;
+    }
+
+    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+  }
+}));
+
+// 2) IMPORTANT: if an /assets/* file is missing, return 404.
+//    This prevents Express from serving index.html (HTML) for a JS module request.
+app.get("/assets/*", (_req, res) => {
+  res.status(404).end();
+});
+
+// 3) SPA fallback for real app routes
+app.get("*", (_req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
