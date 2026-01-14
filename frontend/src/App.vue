@@ -220,7 +220,7 @@ const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0
 const cardOptions = computed(() => {
   return tShirtMode.value
     ? ['XS', 'S', 'M', 'L', 'XL']
-    : ['1', '2', '3', '5', '8', '13', '20', '40', '100', '?']
+    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?', '☕']
 })
 
 function valueToNumber(v: string): number {
