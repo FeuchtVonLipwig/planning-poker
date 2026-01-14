@@ -13,6 +13,7 @@ project-root/
 │  └─ vite.config.ts
 
 
+
 App.vue must exist in frontend/src/.
 
 main.ts must import App.vue correctly:
