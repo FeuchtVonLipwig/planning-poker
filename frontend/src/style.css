@@ -288,6 +288,14 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
+/* ✅ Reserve a badge area so the row doesn't "jump" */
+.badge-slot {
+  min-width: 92px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 /* MIDDLE */
 .middle {
   margin: 1rem auto 0;
@@ -308,6 +316,7 @@ input::placeholder { color: #9aa3b2; }
 .status-ok { color: #a7f3d0; }
 .status-hint { margin-top: 0.8rem; color: #9aa3b2; font-weight: 700; }
 
+/* ✅ Reserve one row height for text OR one row of chips */
 .status-body {
   min-height: 38px;
   display: flex;
@@ -325,13 +334,15 @@ input::placeholder { color: #9aa3b2; }
 .chip-voted { background: rgba(34,197,94,0.15); color: #bbf7d0; }
 .chip-waiting { background: rgba(239,68,68,0.15); color: #fecaca; }
 
-/* Voting cards */
+/* VOTING */
 .cards {
   display: flex;
   gap: 0.85rem;
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* Voting cards – real card look */
 .card-btn {
   width: 76px;
   height: 108px;
@@ -357,12 +368,16 @@ input::placeholder { color: #9aa3b2; }
     box-shadow 0.15s ease,
     border-color 0.15s ease;
 }
+
+/* Hover = lift like a real card */
 .card-btn:hover:not(:disabled) {
   transform: translateY(-4px);
   box-shadow:
     0 12px 26px rgba(0, 0, 0, 0.6),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+
+/* Selected card */
 .card-btn.selected {
   border-color: #2b68ff;
   box-shadow:
@@ -370,6 +385,8 @@ input::placeholder { color: #9aa3b2; }
     0 14px 30px rgba(0, 0, 0, 0.7);
   transform: translateY(-6px);
 }
+
+/* Disabled cards */
 .card-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -387,8 +404,151 @@ input::placeholder { color: #9aa3b2; }
 /* Votes modal card */
 .votes-card { width: auto; padding: 1rem; }
 
-/* ---- FIX 1: Copy links layout (no list bullets, no fake bullets) ---- */
+.inline-cheater {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  padding: 0.16rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(239,68,68,0.55);
+  background: rgba(239,68,68,0.14);
+  color: #fecaca;
+}
+
+/* ✅ Cards centered and modal can shrink-wrap to content */
+.vote-cards {
+  width: 100%;
+  margin-top: 0.75rem;
+
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.vote-card-wrap {
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* 3D flip stage */
+.vote-card-3d {
+  width: 92px;
+  height: 128px;
+  perspective: 900px;
+}
+
+.vote-card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+}
+
+.vote-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+/* both faces */
+.vote-card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 14px;
+  border: 1px solid #2a3142;
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* back: concealed */
+.vote-card-back {
+  background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
+}
+
+/* front: revealed */
+.vote-card-front {
+  transform: rotateY(180deg);
+  background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vote-card-value {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #f5f7ff;
+  text-shadow: 0 6px 18px rgba(0,0,0,0.55);
+}
+
+.vote-card-name {
+  max-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  text-align: center;
+}
+
+.vote-card-name-text {
+  font-weight: 800;
+  color: #f5f7ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+/* ✅ Centered average */
+.avg-center {
+  margin-top: 0.9rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.avg-symbol {
+  color: #cbd3e6;
+  font-weight: 900;
+}
+.avg-number {
+  font-weight: 900;
+}
+
+/* Room ID copy row */
+.room-id-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  min-width: 0;
+}
+.room-id-label,
+.room-id-value {
+  margin: 0;
+}
+.room-id-value {
+  font-weight: 900;
+  color: #f5f7ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+  min-width: 0;
+}
+
+/* Copy links under Room ID */
 .copy-links {
+  list-style: none;
+  padding: 0;
   margin: 0.25rem 0 0.6rem;
   display: flex;
   flex-direction: column;
@@ -414,41 +574,6 @@ input::placeholder { color: #9aa3b2; }
   text-decoration: underline;
 }
 
-.link-icon {
-  width: 1.1em;
-  display: inline-flex;
-  justify-content: center;
-}
-
-/* ---- FIX 2: Room ID row should not wrap ---- */
-.room-id-row {
-  display: flex;
-  flex-wrap: nowrap;          /* ✅ keep same line */
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-  min-width: 0;
-}
-
-.room-id-label,
-.room-id-value {
-  margin: 0;
-}
-
-.room-id-label {
-  white-space: nowrap;        /* ✅ don't wrap "Room ID:" */
-}
-
-.room-id-value {
-  font-weight: 900;
-  color: #f5f7ff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;           /* ✅ a bit more room than before */
-  min-width: 0;
-}
-
 /* --------------------
    MODAL (Votes)
 -------------------- */
@@ -462,26 +587,33 @@ input::placeholder { color: #9aa3b2; }
   padding: 2rem;
   z-index: 2000;
 }
+
+/* ✅ shrink-wrap modal to content, but never exceed viewport */
 .modal {
   width: fit-content;
   min-width: 450px;
+
   max-width: 92vw;
   max-height: 90vh;
   overflow: auto;
   background: transparent;
 }
+
+/* Modal header inside votes modal */
 .modal-header {
   width: 100%;
   margin-bottom: 0.75rem;
   display: flex;
   justify-content: center;
 }
+
 .modal-title {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 900;
   color: #f5f7ff;
 }
+
 .modal-footer {
   margin-top: 1rem;
   display: flex;
@@ -489,74 +621,41 @@ input::placeholder { color: #9aa3b2; }
 }
 
 /* --------------------
-   CELEBRATION / CONFETTI
+   CELEBRATION / CONFETTI (no emoji burst)
 -------------------- */
 .celebration {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 2500;
+  z-index: 2500; /* above modal */
 }
+
 .confetti {
   position: absolute;
   inset: 0;
   overflow: hidden;
 }
+
 .confetti-piece {
   position: absolute;
   top: -10%;
   width: 10px;
   height: 16px;
   border-radius: 3px;
+
+  /* color is set inline per piece */
   background: #fff;
+
   box-shadow: 0 8px 18px rgba(0,0,0,0.25);
   animation-name: confetti-fall;
   animation-timing-function: ease-in;
   animation-fill-mode: both;
 }
+
 @keyframes confetti-fall {
   0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
   10% { opacity: 1; }
   100% { transform: translateY(110vh) rotate(520deg); opacity: 0; }
-}
-
-/* --------------------
-   GOLD HUD
--------------------- */
-.gold-hud {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 2600;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.55rem;
-
-  padding: 0.5rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.65);
-  backdrop-filter: blur(6px);
-
-  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-}
-.gold-label { font-weight: 900; color: #f5f7ff; }
-.gold-count { font-weight: 900; color: #facc15; }
-
-.gold-delta {
-  position: absolute;
-  right: 10px;
-  bottom: 42px;
-  font-weight: 900;
-  color: #a7f3d0;
-  opacity: 0;
-  animation: gold-float 1.2s ease-out forwards;
-  pointer-events: none;
-}
-@keyframes gold-float {
-  0%   { transform: translateY(8px); opacity: 0; }
-  15%  { opacity: 1; }
-  100% { transform: translateY(-18px); opacity: 0; }
 }
 
 .panel-left { order: 1; }
@@ -586,10 +685,15 @@ input::placeholder { color: #9aa3b2; }
     width: min(92vw, 980px);
   }
 
+  /* ✅ On small screens we must not force min-width 450 */
   .modal {
     width: 92vw;
     max-width: 92vw;
     min-width: 0;
+  }
+
+  .vote-card-wrap {
+    width: 110px;
   }
 
   .modal-backdrop {
