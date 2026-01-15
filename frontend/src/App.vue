@@ -220,7 +220,7 @@ const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0
 const cardOptions = computed(() => {
   return tShirtMode.value
     ? ['XS', 'S', 'M', 'L', 'XL', '?']
-    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?'] // ☕ removed
+    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?']
 })
 
 function valueToNumber(v: string): number {
@@ -270,6 +270,39 @@ const averageInfo = computed(() => {
 })
 
 // --------------------
+// Celebration logic
+// --------------------
+const celebrationActive = ref(false)
+let celebrationTimer: number | null = null
+
+function clearCelebration() {
+  celebrationActive.value = false
+  if (celebrationTimer) window.clearTimeout(celebrationTimer)
+  celebrationTimer = null
+}
+
+function triggerCelebration() {
+  if (celebrationActive.value) return
+  celebrationActive.value = true
+  celebrationTimer = window.setTimeout(() => {
+    celebrationActive.value = false
+    celebrationTimer = null
+  }, 1800)
+}
+
+const allVotesSame = computed(() => {
+  const values = votesForModal.value.map(e => e.value)
+  if (values.length === 0) return false
+  return values.every(v => v === values[0])
+})
+
+function areAllFlippedNow(): boolean {
+  const ids = votesForModal.value.map(e => e.id)
+  if (ids.length === 0) return false
+  return ids.every(id => !!flippedMap.value[id])
+}
+
+// --------------------
 // Votes flip animation (modal)
 // --------------------
 const flippedMap = ref<Record<string, boolean>>({})
@@ -282,6 +315,7 @@ function clearFlipTimers() {
 
 function startFlipSequence() {
   clearFlipTimers()
+  clearCelebration()
 
   // Start: all concealed
   const next: Record<string, boolean> = {}
@@ -293,6 +327,11 @@ function startFlipSequence() {
     const delay = Math.floor(Math.random() * 2001)
     const timer = window.setTimeout(() => {
       flippedMap.value = { ...flippedMap.value, [e.id]: true }
+
+      // If this was the last flip AND everyone voted the same → celebrate
+      if (areAllFlippedNow() && allVotesSame.value) {
+        triggerCelebration()
+      }
     }, delay)
     flipTimers.push(timer)
   }
@@ -300,12 +339,25 @@ function startFlipSequence() {
 
 onBeforeUnmount(() => {
   clearFlipTimers()
+  clearCelebration()
 })
 
 watch(showVotesModal, (open) => {
   if (open) startFlipSequence()
-  else clearFlipTimers()
+  else {
+    clearFlipTimers()
+    clearCelebration()
+  }
 })
+
+// Simple, deterministic confetti layout
+const confettiPieces = Array.from({ length: 26 }, (_, i) => ({
+  id: i,
+  left: (i * 7) % 100,            // 0..99%
+  delay: (i % 8) * 0.06,          // 0..0.42s
+  dur: 0.9 + (i % 6) * 0.15,      // ~0.9..1.65s
+  rot: (i * 37) % 360
+}))
 
 // --------------------
 // Socket events
@@ -343,6 +395,7 @@ socket.on("reset", () => {
   showVotesModal.value = false
   flippedMap.value = {}
   clearFlipTimers()
+  clearCelebration()
 })
 
 socket.on("public-rooms-updated", (rooms: PublicRoom[]) => {
@@ -497,6 +550,7 @@ const closeSession = () => {
   pendingVisibilityFromUrl.value = null
   flippedMap.value = {}
   clearFlipTimers()
+  clearCelebration()
   setUrlHome()
   socket.emit("get-public-rooms")
 }
@@ -762,6 +816,24 @@ const copyUrl = async () => {
 
             <!-- MODAL: Votes -->
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
+              <!-- Celebration overlay (after all flips & all same) -->
+              <div v-if="celebrationActive" class="celebration" aria-hidden="true">
+                <div class="confetti">
+                  <span
+                    v-for="p in confettiPieces"
+                    :key="p.id"
+                    class="confetti-piece"
+                    :style="{
+                      left: p.left + '%',
+                      animationDelay: p.delay + 's',
+                      animationDuration: p.dur + 's',
+                      transform: `rotate(${p.rot}deg)`
+                    }"
+                  />
+                </div>
+                <div class="celebration-burst">🎉</div>
+              </div>
+
               <div class="modal">
                 <div class="card votes-card">
                   <div class="modal-header">
@@ -791,7 +863,8 @@ const copyUrl = async () => {
                     </div>
                   </div>
 
-                  <div class="avg-right">
+                  <!-- renamed from avg-right -> avg-center -->
+                  <div class="avg-center">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>
                   </div>

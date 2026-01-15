@@ -298,7 +298,7 @@ input::placeholder { color: #9aa3b2; }
 
 /* MIDDLE */
 .middle {
-  margin: 1rem auto 0; /* was 170px */
+  margin: 1rem auto 0;
   width: clamp(620px, 40vw, 980px);
   display: flex;
   flex-direction: column;
@@ -345,12 +345,11 @@ input::placeholder { color: #9aa3b2; }
 /* Voting cards – real card look */
 .card-btn {
   width: 76px;
-  height: 108px; /* card aspect ratio */
+  height: 108px;
   padding: 0;
   border-radius: 14px;
   border: 1px solid #2a3142;
-  background:
-    linear-gradient(180deg, #1d2230 0%, #141826 100%);
+  background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
   color: #f5f7ff;
   font-size: 1.6rem;
   font-weight: 900;
@@ -392,14 +391,13 @@ input::placeholder { color: #9aa3b2; }
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
-  box-shadow:
-    0 6px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
 .buttons {
   display: flex;
-  gap: 0.75rem; /* restores space between buttons */
-  margin-top: 1rem; /* keeps separation from cards above */
+  gap: 0.75rem;
+  margin-top: 1rem;
   justify-content: center;
 }
 
@@ -424,13 +422,13 @@ input::placeholder { color: #9aa3b2; }
 
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;  /* center the cards */
+  justify-content: center;
   gap: 0.9rem;
   align-items: flex-start;
 }
 
 .vote-card-wrap {
-  width: 120px; /* gives consistent spacing so centering looks good */
+  width: 120px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -508,12 +506,12 @@ input::placeholder { color: #9aa3b2; }
   max-width: 120px;
 }
 
-/* Ø average aligned right (no divider line now) */
-.avg-right {
+/* ✅ Renamed + centered average */
+.avg-center {
   margin-top: 0.9rem;
   width: 100%;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center; /* center */
   align-items: baseline;
   gap: 0.6rem;
 }
@@ -532,8 +530,6 @@ input::placeholder { color: #9aa3b2; }
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
-
-  /* SAFETY: allow flex children to shrink */
   min-width: 0;
 }
 .room-id-label,
@@ -547,8 +543,6 @@ input::placeholder { color: #9aa3b2; }
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 120px;
-
-  /* SAFETY: allow shrinking */
   min-width: 0;
 }
 
@@ -591,18 +585,13 @@ input::placeholder { color: #9aa3b2; }
   display: flex;
   align-items: center;
   justify-content: center;
-
-  /* ✅ MORE breathing room around the modal */
   padding: 2rem;
-
-  z-index: 2000; /* above panels (1000) */
+  z-index: 2000;
 }
 
 /* ✅ shrink-wrap modal to content, but never exceed viewport */
 .modal {
   width: fit-content;
-
-  /* ✅ min width so it doesn't look tiny with few voters */
   min-width: 450px;
 
   max-width: 92vw;
@@ -632,20 +621,69 @@ input::placeholder { color: #9aa3b2; }
   justify-content: center;
 }
 
+/* --------------------
+   CELEBRATION / CONFETTI
+-------------------- */
+.celebration {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2500; /* above modal */
+}
+
+.celebration-burst {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  transform: translate(-50%, -50%);
+  font-size: 3.2rem;
+  animation: burst 0.55s ease both;
+  filter: drop-shadow(0 12px 30px rgba(0,0,0,0.55));
+}
+
+@keyframes burst {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -10%;
+  width: 10px;
+  height: 16px;
+  border-radius: 3px;
+  background: rgba(245, 247, 255, 0.85);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: both;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(520deg); opacity: 0; }
+}
+
 .panel-left { order: 1; }
 .panel-right { order: 2; }
 .middle { order: 3; }
 
 /* RESPONSIVE */
 @media (max-width: 1100px) {
-  /* Make the step-3 layout a flex stack so order works */
   .room-layout {
     display: flex;
     flex-direction: column;
     align-items: center;
   }
 
-  /* Reorder: middle first, left second, right last */
   .middle { order: 1; }
   .panel-left { order: 2; }
   .panel-right { order: 3; }
@@ -672,8 +710,12 @@ input::placeholder { color: #9aa3b2; }
     width: 110px;
   }
 
-  /* ✅ keep nice margin even on mobile */
   .modal-backdrop {
     padding: 1.25rem;
+  }
+
+  .celebration-burst {
+    top: 30%;
+    font-size: 2.8rem;
   }
 }
