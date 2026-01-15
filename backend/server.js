@@ -65,6 +65,12 @@ function maybeAutoReveal(roomId) {
   room.revealed = true;
   room.cheaters = {}; // new reveal round
 
+  // gold-round bookkeeping
+  room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+  room.gold.roundKey = (room.gold.roundKey || 0) + 1;
+  room.gold.awarded = false;
+  room.gold.awards = {};
+
   io.to(roomId).emit("revealed");
   emitCheaters(roomId);
 }
@@ -76,6 +82,56 @@ function emitRoomSettings(roomId) {
     autoReveal: !!room.autoReveal,
     tShirtMode: !!room.tShirtMode
   });
+}
+
+// --------------------
+// Gold calculation (server-side, per revealed round)
+// --------------------
+function computeGoldAwards(roomId) {
+  const room = rooms[roomId];
+  if (!room) return { roundKey: 0, awards: {} };
+
+  room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+
+  // Only compute if revealed
+  if (!room.revealed) {
+    return { roundKey: room.gold.roundKey || 0, awards: {} };
+  }
+
+  const users = room.users || [];
+  const activeUsers = users.filter(u => !u.spectator);
+
+  // Only count votes from active users
+  const votes = room.votes || {};
+  const activeVoteEntries = activeUsers
+    .filter(u => votes[u.id] !== undefined)
+    .map(u => ({ id: u.id, value: votes[u.id] }));
+
+  // If only one person voted, nobody gets gold
+  if (activeVoteEntries.length < 2) {
+    return { roundKey: room.gold.roundKey || 0, awards: {} };
+  }
+
+  // Count occurrences per vote value
+  const counts = {};
+  for (const e of activeVoteEntries) {
+    const key = String(e.value);
+    counts[key] = (counts[key] || 0) + 1;
+  }
+
+  // Award rules:
+  // - if your vote appears only once -> 50
+  // - otherwise -> count * 100  (2=>200, 3=>300...)
+  const awards = {};
+  for (const e of activeVoteEntries) {
+    const c = counts[String(e.value)] || 0;
+    if (c <= 0) continue;
+
+    if (c === 1) awards[e.id] = 50;
+    else awards[e.id] = c * 100;
+  }
+
+  return { roundKey: room.gold.roundKey || 0, awards };
 }
 
 io.on("connection", (socket) => {
@@ -101,7 +157,8 @@ io.on("connection", (socket) => {
       public: !isPrivate,
       autoReveal: !!autoReveal,
       tShirtMode: !!tShirtMode,
-      cheaters: {}
+      cheaters: {},
+      gold: { roundKey: 0, awarded: false, awards: {} }
     };
 
     socket.join(roomId);
@@ -155,7 +212,8 @@ io.on("connection", (socket) => {
         public: isRoomPublic,
         autoReveal: !!autoReveal,
         tShirtMode: !!tShirtMode,
-        cheaters: {}
+        cheaters: {},
+        gold: { roundKey: 0, awarded: false, awards: {} }
       };
     }
 
@@ -182,7 +240,7 @@ io.on("connection", (socket) => {
     maybeAutoReveal(roomId);
   });
 
-  // ✅ UPDATED: update room tShirtMode setting + reset current round
+  // update room tShirtMode setting + reset current round
   socket.on("set-tshirt-mode", ({ roomId, tShirtMode }) => {
     if (!rooms[roomId]) return;
 
@@ -193,6 +251,11 @@ io.on("connection", (socket) => {
     room.votes = {};
     room.revealed = false;
     room.cheaters = {};
+
+    // Reset gold round state too
+    room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+    room.gold.awarded = false;
+    room.gold.awards = {};
 
     // Inform clients
     io.to(roomId).emit("reset");
@@ -251,21 +314,56 @@ io.on("connection", (socket) => {
   // --- Reveal Votes ---
   socket.on("reveal", (roomId) => {
     if (!rooms[roomId]) return;
-    rooms[roomId].revealed = true;
 
-    rooms[roomId].cheaters = {};
+    const room = rooms[roomId];
+    room.revealed = true;
+    room.cheaters = {};
+
+    // start a new gold round
+    room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+    room.gold.roundKey = (room.gold.roundKey || 0) + 1;
+    room.gold.awarded = false;
+    room.gold.awards = {};
 
     io.to(roomId).emit("revealed");
     emitCheaters(roomId);
+  });
+
+  // --- NEW: Modal closed trigger (gold awards broadcast once) ---
+  socket.on("votes-modal-closed", ({ roomId }) => {
+    if (!rooms[roomId]) return;
+
+    const room = rooms[roomId];
+    room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+
+    // Only award once per revealed round
+    if (!room.revealed) return;
+    if (room.gold.awarded) return;
+
+    const { roundKey, awards } = computeGoldAwards(roomId);
+
+    room.gold.awarded = true;
+    room.gold.awards = awards || {};
+
+    io.to(roomId).emit("gold-awarded", {
+      roundKey,
+      awards: room.gold.awards
+    });
   });
 
   // --- Reset Votes ---
   socket.on("reset", (roomId) => {
     if (!rooms[roomId]) return;
 
-    rooms[roomId].votes = {};
-    rooms[roomId].revealed = false;
-    rooms[roomId].cheaters = {};
+    const room = rooms[roomId];
+    room.votes = {};
+    room.revealed = false;
+    room.cheaters = {};
+
+    // reset gold state for next round
+    room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+    room.gold.awarded = false;
+    room.gold.awards = {};
 
     io.to(roomId).emit("reset");
     emitVotes(roomId);
@@ -289,6 +387,9 @@ io.on("connection", (socket) => {
       room.votes = {};
       room.revealed = false;
       room.cheaters = {};
+      room.gold = room.gold || { roundKey: 0, awarded: false, awards: {} };
+      room.gold.awarded = false;
+      room.gold.awards = {};
     } else {
       emitUsers(roomId);
       emitVotes(roomId);
@@ -326,9 +427,6 @@ io.on("connection", (socket) => {
 // ---------------------------
 const distPath = path.join(__dirname, "../frontend/dist");
 
-// 1) Serve static files with proper cache headers:
-//    - index.html: never cache (prevents stale HTML after deploy)
-//    - /assets/*: cache forever (Vite hashed files)
 app.use(express.static(distPath, {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith("index.html")) {
@@ -347,13 +445,10 @@ app.use(express.static(distPath, {
   }
 }));
 
-// 2) IMPORTANT: if an /assets/* file is missing, return 404.
-//    This prevents Express from serving index.html (HTML) for a JS module request.
 app.get("/assets/*", (_req, res) => {
   res.status(404).end();
 });
 
-// 3) SPA fallback for real app routes
 app.get("*", (_req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
