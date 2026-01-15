@@ -53,6 +53,17 @@ const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
 const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
 const TSHIRT_MODE_STORAGE_KEY = 'planning_poker_tshirt_mode'
 
+// ✅ Gold storage
+const GOLD_STORAGE_KEY = 'planning_poker_gold'
+const DEVICE_ID_STORAGE_KEY = 'planning_poker_device_id'
+const GOLD_REWARD_PREFIX = 'planning_poker_gold_rewarded_round_' // + roomId + "_" + hash
+
+const gold = ref<number>(0)
+const goldDelta = ref<number | null>(null)
+let goldDeltaTimer: number | null = null
+
+const deviceId = ref<string>('')
+
 // --------------------
 // URL helpers
 // --------------------
@@ -115,6 +126,120 @@ function applySpectatorToRoom() {
   socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
 }
 
+// --------------------
+// Gold helpers
+// --------------------
+function safeParseInt(v: string | null, fallback = 0) {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback
+}
+
+function ensureDeviceId(): string {
+  try {
+    const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY)
+    if (existing && existing.trim()) return existing.trim()
+
+    const gen =
+      (globalThis.crypto && 'randomUUID' in globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+        ? globalThis.crypto.randomUUID()
+        : `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`
+
+    window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, gen)
+    return gen
+  } catch {
+    // fallback (won't persist)
+    return `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`
+  }
+}
+
+// Simple stable hash (djb2)
+function hashString(input: string): string {
+  let h = 5381
+  for (let i = 0; i < input.length; i++) {
+    h = ((h << 5) + h) ^ input.charCodeAt(i)
+  }
+  return (h >>> 0).toString(16)
+}
+
+// reward formula
+function computeGoldReward(): number {
+  // Only reward when at least 2 votes exist in the revealed modal
+  if (votesForModal.value.length < 2) return 0
+  if (isSpectator.value) return 0
+
+  const mine = votesForModal.value.find(e => e.id === socket.id)
+  if (!mine) return 0
+
+  const myValue = mine.value
+  const sameCount = votesForModal.value.filter(e => e.value === myValue).length
+
+  // If only one vote exists overall we'd have returned above; keep logic safe:
+  if (votesForModal.value.length < 2) return 0
+
+  if (sameCount === 1) return 50
+  return sameCount * 100
+}
+
+// A “round key” derived from room + revealed votes.
+// Used to ensure we don’t grant twice if multiple tabs are open.
+function getRoundSignatureHash(): string {
+  const parts = votesForModal.value
+    .map(e => `${e.id}:${e.value}`)
+    .sort((a, b) => a.localeCompare(b))
+    .join('|')
+
+  const raw = `${roomId.value}::${parts}`
+  return hashString(raw)
+}
+
+function markRoundRewarded(hash: string): boolean {
+  // returns true if we successfully mark it as rewarded (i.e. first time)
+  try {
+    const key = `${GOLD_REWARD_PREFIX}${roomId.value}_${hash}`
+    const existing = window.localStorage.getItem(key)
+    if (existing) return false
+
+    // store deviceId + timestamp for debugging/uniqueness
+    window.localStorage.setItem(key, `${deviceId.value}::${Date.now()}`)
+    return true
+  } catch {
+    // If we can't write, don't reward (safer than double-rewarding)
+    return false
+  }
+}
+
+function showGoldDelta(amount: number) {
+  if (amount <= 0) return
+  goldDelta.value = amount
+  if (goldDeltaTimer) window.clearTimeout(goldDeltaTimer)
+  goldDeltaTimer = window.setTimeout(() => {
+    goldDelta.value = null
+    goldDeltaTimer = null
+  }, 1200)
+}
+
+function applyGoldIfEligibleAfterModalClose() {
+  const reward = computeGoldReward()
+  if (reward <= 0) return
+
+  const roundHash = getRoundSignatureHash()
+  const ok = markRoundRewarded(roundHash)
+  if (!ok) return // already rewarded in another tab/window
+
+  gold.value = gold.value + reward
+  showGoldDelta(reward)
+}
+
+// Keep gold synced across tabs
+function onStorageChange(e: StorageEvent) {
+  if (e.key === GOLD_STORAGE_KEY) {
+    gold.value = safeParseInt(e.newValue, gold.value)
+  }
+}
+
+// --------------------
+// Lifecycle
+// --------------------
 onMounted(() => {
   try {
     const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
@@ -136,6 +261,15 @@ onMounted(() => {
     if (savedTs !== null) tShirtMode.value = savedTs === 'true'
   } catch {}
 
+  // ✅ Gold load + device id
+  deviceId.value = ensureDeviceId()
+  try {
+    gold.value = safeParseInt(window.localStorage.getItem(GOLD_STORAGE_KEY), 0)
+  } catch {
+    gold.value = 0
+  }
+  window.addEventListener('storage', onStorageChange)
+
   const rid = getRoomIdFromUrl()
   pendingVisibilityFromUrl.value = getVisibilityFromUrl()
 
@@ -152,22 +286,27 @@ onMounted(() => {
   })
 })
 
+onBeforeUnmount(() => {
+  clearFlipTimers()
+  clearCelebration()
+  if (goldDeltaTimer) window.clearTimeout(goldDeltaTimer)
+  window.removeEventListener('storage', onStorageChange)
+})
+
+// Persist settings
 watch(isSpectator, (val) => {
-  try {
-    window.localStorage.setItem(SPECTATOR_STORAGE_KEY, String(!!val))
-  } catch {}
+  try { window.localStorage.setItem(SPECTATOR_STORAGE_KEY, String(!!val)) } catch {}
 })
-
 watch(autoReveal, (val) => {
-  try {
-    window.localStorage.setItem(AUTO_REVEAL_STORAGE_KEY, String(!!val))
-  } catch {}
+  try { window.localStorage.setItem(AUTO_REVEAL_STORAGE_KEY, String(!!val)) } catch {}
+})
+watch(tShirtMode, (val) => {
+  try { window.localStorage.setItem(TSHIRT_MODE_STORAGE_KEY, String(!!val)) } catch {}
 })
 
-watch(tShirtMode, (val) => {
-  try {
-    window.localStorage.setItem(TSHIRT_MODE_STORAGE_KEY, String(!!val))
-  } catch {}
+// ✅ Persist gold
+watch(gold, (val) => {
+  try { window.localStorage.setItem(GOLD_STORAGE_KEY, String(Math.max(0, Math.floor(val)))) } catch {}
 })
 
 // Clear inline errors when user edits inputs again
@@ -322,9 +461,9 @@ const confettiColors = [
 // Simple, deterministic confetti layout
 const confettiPieces = Array.from({ length: 34 }, (_, i) => ({
   id: i,
-  left: (i * 7) % 100,            // 0..99%
-  delay: (i % 10) * 0.05,         // 0..0.45s
-  dur: 0.9 + (i % 7) * 0.14,      // ~0.9..1.74s
+  left: (i * 7) % 100,
+  delay: (i % 10) * 0.05,
+  dur: 0.9 + (i % 7) * 0.14,
   rot: (i * 37) % 360,
   color: confettiColors[i % confettiColors.length]
 }))
@@ -349,13 +488,23 @@ function startFlipSequence() {
   for (const e of votesForModal.value) next[e.id] = false
   flippedMap.value = next
 
+  // Only animate when at least 2 votes
+  if (votesForModal.value.length < 2) {
+    // reveal immediately
+    const immediate: Record<string, boolean> = {}
+    for (const e of votesForModal.value) immediate[e.id] = true
+    flippedMap.value = immediate
+
+    if (shouldCelebrateNow()) triggerCelebration()
+    return
+  }
+
   // Flip each with random delay 0..2000ms
   for (const e of votesForModal.value) {
     const delay = Math.floor(Math.random() * 2001)
     const timer = window.setTimeout(() => {
       flippedMap.value = { ...flippedMap.value, [e.id]: true }
 
-      // If this was the last flip AND everyone voted the same (and >=2) → confetti
       if (areAllFlippedNow() && shouldCelebrateNow()) {
         triggerCelebration()
       }
@@ -363,11 +512,6 @@ function startFlipSequence() {
     flipTimers.push(timer)
   }
 }
-
-onBeforeUnmount(() => {
-  clearFlipTimers()
-  clearCelebration()
-})
 
 watch(showVotesModal, (open) => {
   if (open) startFlipSequence()
@@ -542,6 +686,9 @@ const revealVotes = () => {
 }
 
 const closeVotesModal = () => {
+  // ✅ Apply gold AFTER modal is being closed (before we reset the round)
+  applyGoldIfEligibleAfterModalClose()
+
   showVotesModal.value = false
   resetVotes()
 }
@@ -624,6 +771,21 @@ const copyUrl = async () => {
     <header class="app-header">
       <h1>Planning Poker</h1>
     </header>
+
+    <!-- ✅ Gold HUD: always bottom-right -->
+    <div class="gold-hud" aria-label="Gold">
+      <span class="gold-label">Gold</span>
+      <span class="gold-count">{{ gold }}</span>
+
+      <span
+        v-if="goldDelta !== null"
+        class="gold-delta"
+        :key="goldDelta"
+        aria-hidden="true"
+      >
+        +{{ goldDelta }}
+      </span>
+    </div>
 
     <div class="container">
       <div class="content">
