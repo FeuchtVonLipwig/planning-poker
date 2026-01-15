@@ -53,32 +53,6 @@ const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
 const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
 const TSHIRT_MODE_STORAGE_KEY = 'planning_poker_tshirt_mode'
 
-// Gold
-const GOLD_STORAGE_KEY = 'planning_poker_gold'
-const LAST_GOLD_ROUND_KEY = 'planning_poker_gold_last_round'
-const gold = ref<number>(0)
-
-// pending gold for THIS client (received from server, applied when modal closes)
-const pendingGold = ref<number>(0)
-const pendingGoldRound = ref<number | null>(null)
-
-// floating +X animation
-const goldFloatAmount = ref<number>(0)
-const showGoldFloat = ref(false)
-let goldFloatTimer: number | null = null
-
-function triggerGoldFloat(amount: number) {
-  if (amount <= 0) return
-  goldFloatAmount.value = amount
-  showGoldFloat.value = true
-  if (goldFloatTimer) window.clearTimeout(goldFloatTimer)
-  goldFloatTimer = window.setTimeout(() => {
-    showGoldFloat.value = false
-    goldFloatAmount.value = 0
-    goldFloatTimer = null
-  }, 1200)
-}
-
 // --------------------
 // URL helpers
 // --------------------
@@ -141,56 +115,6 @@ function applySpectatorToRoom() {
   socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
 }
 
-function loadGoldFromStorage() {
-  try {
-    const saved = window.localStorage.getItem(GOLD_STORAGE_KEY)
-    if (saved !== null) {
-      const n = Number(saved)
-      gold.value = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
-    }
-  } catch {}
-}
-
-function saveGoldToStorage() {
-  try { window.localStorage.setItem(GOLD_STORAGE_KEY, String(gold.value)) } catch {}
-}
-
-function getLastAppliedRound(): number {
-  try {
-    const v = window.localStorage.getItem(LAST_GOLD_ROUND_KEY)
-    const n = Number(v)
-    return Number.isFinite(n) ? n : 0
-  } catch {
-    return 0
-  }
-}
-
-function setLastAppliedRound(roundKey: number) {
-  try { window.localStorage.setItem(LAST_GOLD_ROUND_KEY, String(roundKey)) } catch {}
-}
-
-function applyPendingGoldIfAny() {
-  if (pendingGold.value <= 0) return
-  if (pendingGoldRound.value === null) return
-
-  // tiny safety: do not apply same round twice (in this tab / after refresh)
-  const last = getLastAppliedRound()
-  if (pendingGoldRound.value <= last) {
-    pendingGold.value = 0
-    pendingGoldRound.value = null
-    return
-  }
-
-  gold.value += pendingGold.value
-  saveGoldToStorage()
-  setLastAppliedRound(pendingGoldRound.value)
-
-  triggerGoldFloat(pendingGold.value)
-
-  pendingGold.value = 0
-  pendingGoldRound.value = null
-}
-
 onMounted(() => {
   try {
     const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
@@ -211,8 +135,6 @@ onMounted(() => {
     const savedTs = window.localStorage.getItem(TSHIRT_MODE_STORAGE_KEY)
     if (savedTs !== null) tShirtMode.value = savedTs === 'true'
   } catch {}
-
-  loadGoldFromStorage()
 
   const rid = getRoomIdFromUrl()
   pendingVisibilityFromUrl.value = getVisibilityFromUrl()
@@ -310,6 +232,8 @@ function valueToNumber(v: string): number {
 
 /**
  * Modal display order: LOW → HIGH left-to-right
+ * - numeric values: ascending
+ * - non-numeric values: at the end, alphabetical
  */
 const votesForModal = computed(() => {
   const vmap = activeVotesMap.value
@@ -378,10 +302,12 @@ function areAllFlippedNow(): boolean {
   return ids.every(id => !!flippedMap.value[id])
 }
 
+// Celebration requires at least 2 participants/votes in modal
 function shouldCelebrateNow(): boolean {
   return votesForModal.value.length >= 2 && allVotesSame.value
 }
 
+// Confetti colors
 const confettiColors = [
   '#facc15', // yellow
   '#fb7185', // pink
@@ -393,11 +319,12 @@ const confettiColors = [
   '#f87171'  // red
 ]
 
+// Simple, deterministic confetti layout
 const confettiPieces = Array.from({ length: 34 }, (_, i) => ({
   id: i,
-  left: (i * 7) % 100,
-  delay: (i % 10) * 0.05,
-  dur: 0.9 + (i % 7) * 0.14,
+  left: (i * 7) % 100,            // 0..99%
+  delay: (i % 10) * 0.05,         // 0..0.45s
+  dur: 0.9 + (i % 7) * 0.14,      // ~0.9..1.74s
   rot: (i * 37) % 360,
   color: confettiColors[i % confettiColors.length]
 }))
@@ -417,15 +344,18 @@ function startFlipSequence() {
   clearFlipTimers()
   clearCelebration()
 
+  // Start: all concealed
   const next: Record<string, boolean> = {}
   for (const e of votesForModal.value) next[e.id] = false
   flippedMap.value = next
 
+  // Flip each with random delay 0..2000ms
   for (const e of votesForModal.value) {
     const delay = Math.floor(Math.random() * 2001)
     const timer = window.setTimeout(() => {
       flippedMap.value = { ...flippedMap.value, [e.id]: true }
 
+      // If this was the last flip AND everyone voted the same (and >=2) → confetti
       if (areAllFlippedNow() && shouldCelebrateNow()) {
         triggerCelebration()
       }
@@ -437,7 +367,6 @@ function startFlipSequence() {
 onBeforeUnmount(() => {
   clearFlipTimers()
   clearCelebration()
-  if (goldFloatTimer) window.clearTimeout(goldFloatTimer)
 })
 
 watch(showVotesModal, (open) => {
@@ -474,10 +403,6 @@ socket.on("votes-updated", (v) => { votes.value = v })
 socket.on("revealed", () => {
   revealed.value = true
   showVotesModal.value = true
-
-  // new reveal → clear any leftover pending
-  pendingGold.value = 0
-  pendingGoldRound.value = null
 })
 
 socket.on("reset", () => {
@@ -489,9 +414,6 @@ socket.on("reset", () => {
   flippedMap.value = {}
   clearFlipTimers()
   clearCelebration()
-
-  pendingGold.value = 0
-  pendingGoldRound.value = null
 })
 
 socket.on("public-rooms-updated", (rooms: PublicRoom[]) => {
@@ -506,28 +428,6 @@ socket.on("room-settings-updated", (settings: { autoReveal?: boolean; tShirtMode
   if (typeof settings?.autoReveal === 'boolean') autoReveal.value = settings.autoReveal
   if (typeof settings?.tShirtMode === 'boolean') tShirtMode.value = settings.tShirtMode
 })
-
-// NEW: server broadcasts gold awards once; each client stores their own pending
-socket.on("gold-awarded", (payload: { roundKey: number; awards: Record<string, number> }) => {
-  const roundKey = Number(payload?.roundKey || 0)
-  const awards = payload?.awards || {}
-
-  const my = getMyAward(awards)
-  if (my > 0 && roundKey > 0) {
-    pendingGold.value = my
-    pendingGoldRound.value = roundKey
-
-    // If modal is already closed (edge case), apply immediately
-    if (!showVotesModal.value) {
-      applyPendingGoldIfAny()
-    }
-  }
-})
-
-function getMyAward(awards: Record<string, number>) {
-  const id = socket.id
-  return id ? (awards[id] || 0) : 0
-}
 
 socket.on("error", (msg: string) => {
   const text = String(msg || 'Unknown error')
@@ -642,16 +542,7 @@ const revealVotes = () => {
 }
 
 const closeVotesModal = () => {
-  // 1) Tell server "someone closed" -> server will compute+broadcast ONCE
-  socket.emit("votes-modal-closed", { roomId: roomId.value })
-
-  // 2) Close for THIS client
   showVotesModal.value = false
-
-  // 3) Apply pending gold now (if we already received it)
-  applyPendingGoldIfAny()
-
-  // 4) Reset round
   resetVotes()
 }
 
@@ -678,8 +569,6 @@ const closeSession = () => {
   flippedMap.value = {}
   clearFlipTimers()
   clearCelebration()
-  pendingGold.value = 0
-  pendingGoldRound.value = null
   setUrlHome()
   socket.emit("get-public-rooms")
 }
@@ -735,15 +624,6 @@ const copyUrl = async () => {
     <header class="app-header">
       <h1>Planning Poker</h1>
     </header>
-
-    <!-- GOLD HUD (always bottom-right) -->
-    <div class="gold-hud" aria-label="Gold">
-      <div v-if="showGoldFloat" class="gold-float">+{{ goldFloatAmount }}</div>
-      <div class="gold-text">
-        <span class="gold-label">Gold</span>
-        <span class="gold-value">{{ gold }}</span>
-      </div>
-    </div>
 
     <div class="container">
       <div class="content">
@@ -859,7 +739,7 @@ const copyUrl = async () => {
               <span>Auto-reveal</span>
             </label>
 
-            <!-- T-Shirt mode -->
+            <!-- T-Shirt mode (resets votes on toggle) -->
             <label class="spectator-row">
               <input type="checkbox" v-model="tShirtMode" @change="setTShirtMode" />
               <span>T-Shirt mode</span>

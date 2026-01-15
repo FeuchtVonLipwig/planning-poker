@@ -288,6 +288,14 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
+/* ✅ Reserve a badge area so the row doesn't "jump" */
+.badge-slot {
+  min-width: 92px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 /* MIDDLE */
 .middle {
   margin: 1rem auto 0;
@@ -308,6 +316,7 @@ input::placeholder { color: #9aa3b2; }
 .status-ok { color: #a7f3d0; }
 .status-hint { margin-top: 0.8rem; color: #9aa3b2; font-weight: 700; }
 
+/* ✅ Reserve one row height for text OR one row of chips */
 .status-body {
   min-height: 38px;
   display: flex;
@@ -333,6 +342,7 @@ input::placeholder { color: #9aa3b2; }
   justify-content: center;
 }
 
+/* Voting cards – real card look */
 .card-btn {
   width: 76px;
   height: 108px;
@@ -359,6 +369,7 @@ input::placeholder { color: #9aa3b2; }
     border-color 0.15s ease;
 }
 
+/* Hover = lift like a real card */
 .card-btn:hover:not(:disabled) {
   transform: translateY(-4px);
   box-shadow:
@@ -366,6 +377,7 @@ input::placeholder { color: #9aa3b2; }
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Selected card */
 .card-btn.selected {
   border-color: #2b68ff;
   box-shadow:
@@ -374,6 +386,7 @@ input::placeholder { color: #9aa3b2; }
   transform: translateY(-6px);
 }
 
+/* Disabled cards */
 .card-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -402,7 +415,7 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
-/* Cards centered */
+/* ✅ Cards centered and modal can shrink-wrap to content */
 .vote-cards {
   width: 100%;
   margin-top: 0.75rem;
@@ -422,6 +435,7 @@ input::placeholder { color: #9aa3b2; }
   gap: 0.45rem;
 }
 
+/* 3D flip stage */
 .vote-card-3d {
   width: 92px;
   height: 128px;
@@ -440,6 +454,7 @@ input::placeholder { color: #9aa3b2; }
   transform: rotateY(180deg);
 }
 
+/* both faces */
 .vote-card-face {
   position: absolute;
   inset: 0;
@@ -451,10 +466,12 @@ input::placeholder { color: #9aa3b2; }
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* back: concealed */
 .vote-card-back {
   background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
 }
 
+/* front: revealed */
 .vote-card-front {
   transform: rotateY(180deg);
   background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
@@ -489,7 +506,7 @@ input::placeholder { color: #9aa3b2; }
   max-width: 120px;
 }
 
-/* Centered average */
+/* ✅ Centered average */
 .avg-center {
   margin-top: 0.9rem;
   width: 100%;
@@ -557,7 +574,9 @@ input::placeholder { color: #9aa3b2; }
   text-decoration: underline;
 }
 
-/* MODAL */
+/* --------------------
+   MODAL (Votes)
+-------------------- */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -569,6 +588,7 @@ input::placeholder { color: #9aa3b2; }
   z-index: 2000;
 }
 
+/* ✅ shrink-wrap modal to content, but never exceed viewport */
 .modal {
   width: fit-content;
   min-width: 450px;
@@ -579,6 +599,7 @@ input::placeholder { color: #9aa3b2; }
   background: transparent;
 }
 
+/* Modal header inside votes modal */
 .modal-header {
   width: 100%;
   margin-bottom: 0.75rem;
@@ -599,12 +620,14 @@ input::placeholder { color: #9aa3b2; }
   justify-content: center;
 }
 
-/* CELEBRATION / CONFETTI */
+/* --------------------
+   CELEBRATION / CONFETTI (no emoji burst)
+-------------------- */
 .celebration {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 2500;
+  z-index: 2500; /* above modal */
 }
 
 .confetti {
@@ -619,7 +642,10 @@ input::placeholder { color: #9aa3b2; }
   width: 10px;
   height: 16px;
   border-radius: 3px;
+
+  /* color is set inline per piece */
   background: #fff;
+
   box-shadow: 0 8px 18px rgba(0,0,0,0.25);
   animation-name: confetti-fall;
   animation-timing-function: ease-in;
@@ -659,6 +685,7 @@ input::placeholder { color: #9aa3b2; }
     width: min(92vw, 980px);
   }
 
+  /* ✅ On small screens we must not force min-width 450 */
   .modal {
     width: 92vw;
     max-width: 92vw;
@@ -672,55 +699,4 @@ input::placeholder { color: #9aa3b2; }
   .modal-backdrop {
     padding: 1.25rem;
   }
-}
-
-/* --------------------
-   GOLD HUD (always bottom-right)
--------------------- */
-.gold-hud {
-  position: fixed;
-  right: 14px;
-  bottom: 14px;
-  z-index: 3000; /* above everything */
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.3rem;
-}
-
-.gold-text {
-  pointer-events: none;
-  padding: 0.45rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.55);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.gold-label {
-  color: #cbd3e6;
-  font-weight: 900;
-}
-
-.gold-value {
-  color: #f5f7ff;
-  font-weight: 900;
-}
-
-/* +X float animation */
-.gold-float {
-  font-weight: 900;
-  color: #bbf7d0;
-  text-shadow: 0 8px 20px rgba(0,0,0,0.55);
-  animation: gold-float-up 1.2s ease forwards;
-}
-
-@keyframes gold-float-up {
-  0% { transform: translateY(0px); opacity: 0; }
-  12% { opacity: 1; }
-  100% { transform: translateY(-16px); opacity: 0; }
 }
