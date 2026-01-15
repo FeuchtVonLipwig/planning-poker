@@ -220,7 +220,7 @@ const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0
 const cardOptions = computed(() => {
   return tShirtMode.value
     ? ['XS', 'S', 'M', 'L', 'XL', '?']
-    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?', '☕']
+    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?'] // ☕ removed
 })
 
 function valueToNumber(v: string): number {
@@ -231,9 +231,9 @@ function valueToNumber(v: string): number {
 }
 
 /**
- * ✅ Modal display order: LOW → HIGH left-to-right
+ * Modal display order: LOW → HIGH left-to-right
  * - numeric values: ascending
- * - non-numeric values (e.g. ?, ☕): at the end, alphabetical
+ * - non-numeric values: at the end, alphabetical
  */
 const votesForModal = computed(() => {
   const vmap = activeVotesMap.value
@@ -246,7 +246,7 @@ const votesForModal = computed(() => {
   })
 
   entries.sort((a, b) => {
-    if (a.isNumeric && b.isNumeric) return a.num - b.num // LOW -> HIGH
+    if (a.isNumeric && b.isNumeric) return a.num - b.num
     if (a.isNumeric && !b.isNumeric) return -1
     if (!a.isNumeric && b.isNumeric) return 1
     return String(a.value).localeCompare(String(b.value))
@@ -452,14 +452,10 @@ const setAutoReveal = () => {
   socket.emit("set-auto-reveal", { roomId: roomId.value, autoReveal: autoReveal.value })
 }
 
-// ✅ toggling mode resets the round for everyone
 const setTShirtMode = () => {
   if (!roomId.value) return
-
-  // local UX: clear current selection / close modal immediately
   selectedCard.value = null
   showVotesModal.value = false
-
   socket.emit("set-tshirt-mode", { roomId: roomId.value, tShirtMode: tShirtMode.value })
 }
 
@@ -559,7 +555,6 @@ const copyUrl = async () => {
 
     <div class="container">
       <div class="content">
-
         <!-- STEP 1 -->
         <div v-if="step === 1" class="stage">
           <div class="card center-card">
@@ -773,7 +768,7 @@ const copyUrl = async () => {
                     <h3 class="modal-title">Votes</h3>
                   </div>
 
-                  <!-- ✅ NEW: cards left-to-right, lowest -> highest -->
+                  <!-- Cards centered -->
                   <div class="vote-cards" aria-label="Votes revealed">
                     <div
                       v-for="entry in votesForModal"
@@ -782,10 +777,7 @@ const copyUrl = async () => {
                     >
                       <div class="vote-card-3d">
                         <div class="vote-card-inner" :class="{ flipped: !!flippedMap[entry.id] }">
-                          <!-- Back (concealed) -->
                           <div class="vote-card-face vote-card-back" aria-hidden="true"></div>
-
-                          <!-- Front (revealed) -->
                           <div class="vote-card-face vote-card-front">
                             <div class="vote-card-value">{{ entry.value }}</div>
                           </div>

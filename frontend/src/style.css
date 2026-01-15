@@ -298,7 +298,7 @@ input::placeholder { color: #9aa3b2; }
 
 /* MIDDLE */
 .middle {
-  margin: 1rem auto 0;
+  margin: 1rem auto 0; /* was 170px */
   width: clamp(620px, 40vw, 980px);
   display: flex;
   flex-direction: column;
@@ -345,11 +345,12 @@ input::placeholder { color: #9aa3b2; }
 /* Voting cards – real card look */
 .card-btn {
   width: 76px;
-  height: 108px;
+  height: 108px; /* card aspect ratio */
   padding: 0;
   border-radius: 14px;
   border: 1px solid #2a3142;
-  background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
+  background:
+    linear-gradient(180deg, #1d2230 0%, #141826 100%);
   color: #f5f7ff;
   font-size: 1.6rem;
   font-weight: 900;
@@ -369,6 +370,7 @@ input::placeholder { color: #9aa3b2; }
     border-color 0.15s ease;
 }
 
+/* Hover = lift like a real card */
 .card-btn:hover:not(:disabled) {
   transform: translateY(-4px);
   box-shadow:
@@ -376,6 +378,7 @@ input::placeholder { color: #9aa3b2; }
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Selected card */
 .card-btn.selected {
   border-color: #2b68ff;
   box-shadow:
@@ -384,22 +387,24 @@ input::placeholder { color: #9aa3b2; }
   transform: translateY(-6px);
 }
 
+/* Disabled cards */
 .card-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
 .buttons {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.75rem; /* restores space between buttons */
+  margin-top: 1rem; /* keeps separation from cards above */
   justify-content: center;
 }
 
 /* Votes modal card */
-.votes-card { width: 100%; padding: 1rem; }
+.votes-card { width: auto; padding: 1rem; }
 
 .inline-cheater {
   font-size: 0.72rem;
@@ -412,19 +417,20 @@ input::placeholder { color: #9aa3b2; }
   color: #fecaca;
 }
 
-/* ✅ NEW: vote cards grid */
+/* ✅ Cards centered and modal can shrink-wrap to content */
 .vote-cards {
   width: 100%;
   margin-top: 0.75rem;
 
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;  /* center the cards */
   gap: 0.9rem;
-  align-items: start;
+  align-items: flex-start;
 }
 
-/* wrapper for card + name */
 .vote-card-wrap {
+  width: 120px; /* gives consistent spacing so centering looks good */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -484,7 +490,7 @@ input::placeholder { color: #9aa3b2; }
 }
 
 .vote-card-name {
-  max-width: 140px;
+  max-width: 120px;
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -499,14 +505,12 @@ input::placeholder { color: #9aa3b2; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 140px;
+  max-width: 120px;
 }
 
-/* Ø average aligned right */
+/* Ø average aligned right (no divider line now) */
 .avg-right {
   margin-top: 0.9rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #2a3142;
   width: 100%;
   display: flex;
   justify-content: flex-end;
@@ -528,6 +532,8 @@ input::placeholder { color: #9aa3b2; }
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
+
+  /* SAFETY: allow flex children to shrink */
   min-width: 0;
 }
 .room-id-label,
@@ -541,6 +547,8 @@ input::placeholder { color: #9aa3b2; }
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 120px;
+
+  /* SAFETY: allow shrinking */
   min-width: 0;
 }
 
@@ -584,21 +592,22 @@ input::placeholder { color: #9aa3b2; }
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  z-index: 2000;
+  z-index: 2000; /* above panels (1000) */
 }
 
+/* ✅ shrink-wrap modal to content, but never exceed viewport */
 .modal {
-  width: min(720px, 92vw);
+  width: fit-content;
+  max-width: 92vw;
   max-height: 90vh;
   overflow: auto;
   background: transparent;
 }
 
+/* Modal header inside votes modal (no divider line now) */
 .modal-header {
   width: 100%;
-  padding-bottom: 0.5rem;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid #2a3142;
   display: flex;
   justify-content: center;
 }
@@ -622,12 +631,14 @@ input::placeholder { color: #9aa3b2; }
 
 /* RESPONSIVE */
 @media (max-width: 1100px) {
+  /* Make the step-3 layout a flex stack so order works */
   .room-layout {
     display: flex;
     flex-direction: column;
     align-items: center;
   }
 
+  /* Reorder: middle first, left second, right last */
   .middle { order: 1; }
   .panel-left { order: 2; }
   .panel-right { order: 3; }
@@ -641,5 +652,15 @@ input::placeholder { color: #9aa3b2; }
   .middle {
     margin-top: 1rem;
     width: min(92vw, 980px);
+  }
+
+  /* Modal still fits nicely on small screens */
+  .modal {
+    width: 92vw;
+    max-width: 92vw;
+  }
+
+  .vote-card-wrap {
+    width: 110px;
   }
 }
