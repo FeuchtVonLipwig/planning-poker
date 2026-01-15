@@ -1,598 +1,1026 @@
-/* Global dark background for entire page */
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  min-height: 100%;
-  background-color: #0f1115;
-  color: #f5f7ff;
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { socket } from './socket'
+
+// --------------------
+// State
+// --------------------
+const step = ref(1)
+const roomId = ref('')
+const newRoomCode = ref('')
+const userName = ref('')
+
+type Participant = { id: string; name: string; spectator?: boolean }
+const participants = ref<Participant[]>([])
+
+const selectedCard = ref<string | null>(null)
+const votes = ref<Record<string, string>>({})
+const revealed = ref(false)
+const showVotesModal = ref(false)
+
+const isSpectator = ref(false)
+
+// Rooms
+const isPrivate = ref(false) // default = PUBLIC
+type PublicRoom = { roomId: string; users: number }
+const publicRooms = ref<PublicRoom[]>([])
+
+// Room settings
+const autoReveal = ref(false)
+const tShirtMode = ref(false)
+
+// Cheaters (current reveal round)
+const cheaters = ref<Record<string, boolean>>({})
+
+// Copy feedback
+const copied = ref(false)
+const copiedWhat = ref<'id' | 'url' | null>(null)
+let copiedTimer: number | null = null
+
+// --------------------
+// Inline Errors
+// --------------------
+const nameError = ref<string | null>(null)
+const createRoomError = ref<string | null>(null)
+const joinRoomError = ref<string | null>(null)
+const serverError = ref<string | null>(null)
+
+// --------------------
+// LocalStorage
+// --------------------
+const NAME_STORAGE_KEY = 'planning_poker_name'
+const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
+const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
+const TSHIRT_MODE_STORAGE_KEY = 'planning_poker_tshirt_mode'
+
+// ✅ Gold storage
+const GOLD_STORAGE_KEY = 'planning_poker_gold'
+const DEVICE_ID_STORAGE_KEY = 'planning_poker_device_id'
+const GOLD_REWARD_PREFIX = 'planning_poker_gold_rewarded_round_' // + roomId + "_" + hash
+
+const gold = ref<number>(0)
+const goldDelta = ref<number | null>(null)
+let goldDeltaTimer: number | null = null
+
+const deviceId = ref<string>('')
+
+// --------------------
+// URL helpers
+// --------------------
+const pendingRoomFromUrl = ref<string | null>(null)
+const pendingVisibilityFromUrl = ref<'private' | 'public' | null>(null)
+
+function getRoomIdFromUrl(): string | null {
+  const path = window.location.pathname || '/'
+  const match = path.match(/^\/room\/([^/]+)\/?$/)
+  if (!match || !match[1]) return null
+  return decodeURIComponent(match[1])
 }
 
-/* Remove default body width quirks / horizontal scroll */
-body {
-  overflow-x: hidden;
-}
+function getVisibilityFromUrl(): 'private' | 'public' | null {
+  try {
+    const sp = new URLSearchParams(window.location.search)
+    const priv = sp.get('private')
+    const pub = sp.get('public')
 
-.page { min-height: 100vh; background: #0f1115; color: #f5f7ff; }
-.app-header {
-  width: 100vw;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1.6rem 0 1.2rem;
-  margin-left: calc(50% - 50vw);
-}
-.app-header h1 { font-size: 2.8rem; margin: 0; }
+    const isTrue = (v: string | null) => v === 'true' || v === '1' || v === 'yes'
 
-.container {
-  padding: 0 1.25rem;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
-.content {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.stage {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
-.card, .panel {
-  background: #161a22;
-  border: 1px solid #2a3142;
-  border-radius: 12px;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-}
-.center-card {
-  width: min(560px, 92vw);
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.9rem;
-}
-.stack {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.current-name {
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border-radius: 12px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.35);
-  display: flex;
-  justify-content: center;
-  align-items: baseline;
-  gap: 0.45rem;
-}
-.current-name-label { color: #cbd3e6; font-weight: 800; }
-.current-name-value { color: #f5f7ff; font-weight: 900; }
-
-.back-btn {
-  width: 100%;
-  margin-top: -0.1rem;
-  margin-bottom: 0.4rem;
-  display: flex;
-  justify-content: center;
-}
-
-input {
-  padding: 0.6rem 0.75rem;
-  width: 320px;
-  max-width: 82vw;
-  border-radius: 10px;
-  border: 1px solid #2a3142;
-  background: #0f1115;
-  color: #f5f7ff;
-}
-input::placeholder { color: #9aa3b2; }
-
-.label { color: #cbd3e6; font-weight: 700; }
-
-.btn {
-  padding: 0.65rem 1rem;
-  border-radius: 10px;
-  border: 1px solid #2a3142;
-  background: #2b68ff;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btn-ghost { background: transparent; }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; }
-
-.divider {
-  width: 100%;
-  height: 1px;
-  background: #2a3142;
-  margin: 0.75rem 0;
-}
-
-/* Inline errors */
-.error-text {
-  width: 320px;
-  max-width: 82vw;
-  margin-top: -0.15rem;
-  margin-bottom: 0.2rem;
-  color: #fecaca;
-  font-weight: 800;
-  font-size: 0.92rem;
-}
-
-.error-banner {
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border-radius: 12px;
-  border: 1px solid rgba(239,68,68,0.45);
-  background: rgba(239,68,68,0.12);
-  color: #fecaca;
-  font-weight: 900;
-  margin: 0.2rem 0 0.7rem;
-}
-
-/* Check rows */
-.check-row {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: #cbd3e6;
-  font-weight: 800;
-  width: 320px;
-  max-width: 82vw;
-  justify-content: flex-start;
-}
-.check-row input {
-  width: auto;
-  max-width: none;
-  accent-color: #2b68ff;
-}
-
-/* Public rooms list */
-.public-rooms {
-  width: 100%;
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #2a3142;
-}
-.public-rooms-title {
-  width: 100%;
-  text-align: left;
-  color: #cbd3e6;
-  font-weight: 900;
-  margin-bottom: 0.5rem;
-}
-.public-empty {
-  width: 100%;
-  text-align: left;
-  color: #9aa3b2;
-  font-weight: 700;
-  padding: 0.5rem 0.2rem;
-}
-.public-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-.public-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 10px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.35);
-  cursor: pointer;
-}
-.public-item:hover { background: rgba(255,255,255,0.06); }
-.public-room-id { font-weight: 900; color: #f5f7ff; }
-.public-users { font-weight: 800; color: #cbd3e6; }
-
-/* PANELS */
-.panel {
-  position: fixed;
-  top: 1rem;
-  width: 240px;
-  padding: 1rem;
-  z-index: 1000;
-}
-.panel-left { left: 1rem; }
-.panel-right { right: 1rem; }
-
-.spectator-row {
-  margin: 0.4rem 0 0.6rem;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: #cbd3e6;
-  font-weight: 800;
-}
-.spectator-row input {
-  width: auto;
-  max-width: none;
-  accent-color: #2b68ff;
-}
-
-/* Participants panel */
-.panel-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 900;
-  color: #f5f7ff;
-}
-.panel-list {
-  list-style: none;
-  padding: 0;
-  margin: 0.75rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-.panel-list-item {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.35rem 0.45rem;
-  border-radius: 10px;
-  border: 1px solid rgba(42,49,66,0.8);
-  background: rgba(15,17,21,0.35);
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(43,104,255,0.9);
-  box-shadow: 0 0 0 3px rgba(43,104,255,0.15);
-  flex: 0 0 auto;
-}
-.dot.spect {
-  background: rgba(148,163,184,0.95);
-  box-shadow: 0 0 0 3px rgba(148,163,184,0.18);
-}
-.panel-name {
-  font-weight: 800;
-  color: #f5f7ff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1 1 auto;
-}
-
-.badge {
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(148,163,184,0.12);
-  color: #cbd3e6;
-  flex: 0 0 auto;
-}
-.badge-cheater {
-  border-color: rgba(239,68,68,0.55);
-  background: rgba(239,68,68,0.14);
-  color: #fecaca;
-}
-
-/* MIDDLE */
-.middle {
-  margin: 1rem auto 0;
-  width: clamp(620px, 40vw, 980px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-/* STATUS */
-.status { width: 100%; padding: 1rem; }
-.status-row { display: flex; justify-content: space-between; margin-bottom: 0.75rem; }
-.status-title, .status-count { font-weight: 900; }
-.status-count { color: #cbd3e6; }
-.status-subtitle { font-weight: 800; color: #cbd3e6; margin-bottom: 0.4rem; }
-.status-empty { font-weight: 700; color: #f5f7ff; }
-.status-ok { color: #a7f3d0; }
-.status-hint { margin-top: 0.8rem; color: #9aa3b2; font-weight: 700; }
-
-.status-body {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-}
-
-/* CHIPS */
-.chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.chip {
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid #2a3142;
-  font-weight: 700;
-}
-.chip-voted { background: rgba(34,197,94,0.15); color: #bbf7d0; }
-.chip-waiting { background: rgba(239,68,68,0.15); color: #fecaca; }
-
-/* Voting cards */
-.cards {
-  display: flex;
-  gap: 0.85rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.card-btn {
-  width: 76px;
-  height: 108px;
-  padding: 0;
-  border-radius: 14px;
-  border: 1px solid #2a3142;
-  background: linear-gradient(180deg, #1d2230 0%, #141826 100%);
-  color: #f5f7ff;
-  font-size: 1.6rem;
-  font-weight: 900;
-  cursor: pointer;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
-}
-.card-btn:hover:not(:disabled) {
-  transform: translateY(-4px);
-  box-shadow:
-    0 12px 26px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-.card-btn.selected {
-  border-color: #2b68ff;
-  box-shadow:
-    0 0 0 3px rgba(43, 104, 255, 0.35),
-    0 14px 30px rgba(0, 0, 0, 0.7);
-  transform: translateY(-6px);
-}
-.card-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
-}
-
-.buttons {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  justify-content: center;
-}
-
-/* Votes modal card */
-.votes-card { width: auto; padding: 1rem; }
-
-/* ---- FIX 1: Copy links layout (no list bullets, no fake bullets) ---- */
-.copy-links {
-  margin: 0.25rem 0 0.6rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.link-btn {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: #cbd3e6;
-  font-weight: 800;
-  cursor: pointer;
-  text-align: left;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.link-btn:hover {
-  color: #f5f7ff;
-  text-decoration: underline;
-}
-
-.link-icon {
-  width: 1.1em;
-  display: inline-flex;
-  justify-content: center;
-}
-
-/* ---- FIX 2: Room ID row should not wrap ---- */
-.room-id-row {
-  display: flex;
-  flex-wrap: nowrap;          /* ✅ keep same line */
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-  min-width: 0;
-}
-
-.room-id-label,
-.room-id-value {
-  margin: 0;
-}
-
-.room-id-label {
-  white-space: nowrap;        /* ✅ don't wrap "Room ID:" */
-}
-
-.room-id-value {
-  font-weight: 900;
-  color: #f5f7ff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;           /* ✅ a bit more room than before */
-  min-width: 0;
-}
-
-/* --------------------
-   MODAL (Votes)
--------------------- */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  z-index: 2000;
-}
-.modal {
-  width: fit-content;
-  min-width: 450px;
-  max-width: 92vw;
-  max-height: 90vh;
-  overflow: auto;
-  background: transparent;
-}
-.modal-header {
-  width: 100%;
-  margin-bottom: 0.75rem;
-  display: flex;
-  justify-content: center;
-}
-.modal-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 900;
-  color: #f5f7ff;
-}
-.modal-footer {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: center;
-}
-
-/* --------------------
-   CELEBRATION / CONFETTI
--------------------- */
-.celebration {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2500;
-}
-.confetti {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-.confetti-piece {
-  position: absolute;
-  top: -10%;
-  width: 10px;
-  height: 16px;
-  border-radius: 3px;
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.25);
-  animation-name: confetti-fall;
-  animation-timing-function: ease-in;
-  animation-fill-mode: both;
-}
-@keyframes confetti-fall {
-  0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
-  10% { opacity: 1; }
-  100% { transform: translateY(110vh) rotate(520deg); opacity: 0; }
-}
-
-/* --------------------
-   GOLD HUD
--------------------- */
-.gold-hud {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 2600;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.55rem;
-
-  padding: 0.5rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid rgba(42,49,66,0.9);
-  background: rgba(15,17,21,0.65);
-  backdrop-filter: blur(6px);
-
-  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-}
-.gold-label { font-weight: 900; color: #f5f7ff; }
-.gold-count { font-weight: 900; color: #facc15; }
-
-.gold-delta {
-  position: absolute;
-  right: 10px;
-  bottom: 42px;
-  font-weight: 900;
-  color: #a7f3d0;
-  opacity: 0;
-  animation: gold-float 1.2s ease-out forwards;
-  pointer-events: none;
-}
-@keyframes gold-float {
-  0%   { transform: translateY(8px); opacity: 0; }
-  15%  { opacity: 1; }
-  100% { transform: translateY(-18px); opacity: 0; }
-}
-
-.panel-left { order: 1; }
-.panel-right { order: 2; }
-.middle { order: 3; }
-
-/* RESPONSIVE */
-@media (max-width: 1100px) {
-  .room-layout {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .middle { order: 1; }
-  .panel-left { order: 2; }
-  .panel-right { order: 3; }
-
-  .panel {
-    position: static;
-    width: min(92vw, 980px);
-    margin: 0.5rem auto;
-  }
-
-  .middle {
-    margin-top: 1rem;
-    width: min(92vw, 980px);
-  }
-
-  .modal {
-    width: 92vw;
-    max-width: 92vw;
-    min-width: 0;
-  }
-
-  .modal-backdrop {
-    padding: 1.25rem;
+    if (isTrue(priv)) return 'private'
+    if (isTrue(pub)) return 'public'
+    return null
+  } catch {
+    return null
   }
 }
+
+function setUrlToRoom(id: string, visibility: 'private' | 'public' | null) {
+  const base = `/room/${encodeURIComponent(id)}`
+  const next =
+    visibility === 'private' ? `${base}?private=true`
+    : visibility === 'public' ? `${base}?public=true`
+    : base
+
+  const current = `${window.location.pathname}${window.location.search || ''}`
+
+  if (current !== next) {
+    window.history.pushState({}, '', next)
+  }
+}
+
+function setUrlHome() {
+  if (window.location.pathname !== '/' || window.location.search) {
+    window.history.pushState({}, '', '/')
+  }
+}
+
+function currentRoomUrl(): string {
+  const base = `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
+  if (pendingVisibilityFromUrl.value === 'private') return `${base}?private=true`
+  if (pendingVisibilityFromUrl.value === 'public') return `${base}?public=true`
+  return base
+}
+
+function applySpectatorToRoom() {
+  if (!roomId.value) return
+  if (isSpectator.value) selectedCard.value = null
+  socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
+}
+
+// --------------------
+// Gold helpers
+// --------------------
+function safeParseInt(v: string | null, fallback = 0) {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback
+}
+
+function ensureDeviceId(): string {
+  try {
+    const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY)
+    if (existing && existing.trim()) return existing.trim()
+
+    const gen =
+      (globalThis.crypto && 'randomUUID' in globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+        ? globalThis.crypto.randomUUID()
+        : `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`
+
+    window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, gen)
+    return gen
+  } catch {
+    return `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`
+  }
+}
+
+// Simple stable hash (djb2)
+function hashString(input: string): string {
+  let h = 5381
+  for (let i = 0; i < input.length; i++) {
+    h = ((h << 5) + h) ^ input.charCodeAt(i)
+  }
+  return (h >>> 0).toString(16)
+}
+
+// reward formula
+function computeGoldReward(): number {
+  if (votesForModal.value.length < 2) return 0
+  if (isSpectator.value) return 0
+
+  const mine = votesForModal.value.find(e => e.id === socket.id)
+  if (!mine) return 0
+
+  const myValue = mine.value
+  const sameCount = votesForModal.value.filter(e => e.value === myValue).length
+
+  if (sameCount === 1) return 50
+  return sameCount * 100
+}
+
+function getRoundSignatureHash(): string {
+  const parts = votesForModal.value
+    .map(e => `${e.id}:${e.value}`)
+    .sort((a, b) => a.localeCompare(b))
+    .join('|')
+
+  const raw = `${roomId.value}::${parts}`
+  return hashString(raw)
+}
+
+function markRoundRewarded(hash: string): boolean {
+  try {
+    const key = `${GOLD_REWARD_PREFIX}${roomId.value}_${hash}`
+    const existing = window.localStorage.getItem(key)
+    if (existing) return false
+    window.localStorage.setItem(key, `${deviceId.value}::${Date.now()}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function showGoldDelta(amount: number) {
+  if (amount <= 0) return
+  goldDelta.value = amount
+  if (goldDeltaTimer) window.clearTimeout(goldDeltaTimer)
+  goldDeltaTimer = window.setTimeout(() => {
+    goldDelta.value = null
+    goldDeltaTimer = null
+  }, 1200)
+}
+
+function applyGoldIfEligibleAfterModalClose() {
+  const reward = computeGoldReward()
+  if (reward <= 0) return
+
+  const roundHash = getRoundSignatureHash()
+  const ok = markRoundRewarded(roundHash)
+  if (!ok) return
+
+  gold.value = gold.value + reward
+  showGoldDelta(reward)
+}
+
+function onStorageChange(e: StorageEvent) {
+  if (e.key === GOLD_STORAGE_KEY) {
+    gold.value = safeParseInt(e.newValue, gold.value)
+  }
+}
+
+// --------------------
+// Lifecycle
+// --------------------
+onMounted(() => {
+  try {
+    const saved = window.localStorage.getItem(NAME_STORAGE_KEY)
+    if (saved && !userName.value) userName.value = saved
+  } catch {}
+
+  try {
+    const savedSpect = window.localStorage.getItem(SPECTATOR_STORAGE_KEY)
+    if (savedSpect !== null) isSpectator.value = savedSpect === 'true'
+  } catch {}
+
+  try {
+    const savedAuto = window.localStorage.getItem(AUTO_REVEAL_STORAGE_KEY)
+    if (savedAuto !== null) autoReveal.value = savedAuto === 'true'
+  } catch {}
+
+  try {
+    const savedTs = window.localStorage.getItem(TSHIRT_MODE_STORAGE_KEY)
+    if (savedTs !== null) tShirtMode.value = savedTs === 'true'
+  } catch {}
+
+  deviceId.value = ensureDeviceId()
+  try {
+    gold.value = safeParseInt(window.localStorage.getItem(GOLD_STORAGE_KEY), 0)
+  } catch {
+    gold.value = 0
+  }
+  window.addEventListener('storage', onStorageChange)
+
+  const rid = getRoomIdFromUrl()
+  pendingVisibilityFromUrl.value = getVisibilityFromUrl()
+
+  if (rid) {
+    pendingRoomFromUrl.value = rid
+    roomId.value = rid
+  }
+
+  window.addEventListener('popstate', () => {
+    const newRid = getRoomIdFromUrl()
+    pendingRoomFromUrl.value = newRid
+    pendingVisibilityFromUrl.value = getVisibilityFromUrl()
+    if (newRid) roomId.value = newRid
+  })
+})
+
+onBeforeUnmount(() => {
+  clearFlipTimers()
+  clearCelebration()
+  if (goldDeltaTimer) window.clearTimeout(goldDeltaTimer)
+  window.removeEventListener('storage', onStorageChange)
+})
+
+// Persist settings
+watch(isSpectator, (val) => {
+  try { window.localStorage.setItem(SPECTATOR_STORAGE_KEY, String(!!val)) } catch {}
+})
+watch(autoReveal, (val) => {
+  try { window.localStorage.setItem(AUTO_REVEAL_STORAGE_KEY, String(!!val)) } catch {}
+})
+watch(tShirtMode, (val) => {
+  try { window.localStorage.setItem(TSHIRT_MODE_STORAGE_KEY, String(!!val)) } catch {}
+})
+
+// Persist gold
+watch(gold, (val) => {
+  try { window.localStorage.setItem(GOLD_STORAGE_KEY, String(Math.max(0, Math.floor(val)))) } catch {}
+})
+
+// Clear inline errors when user edits inputs again
+watch(userName, () => { nameError.value = null; serverError.value = null })
+watch(newRoomCode, () => { createRoomError.value = null; serverError.value = null })
+watch(roomId, () => { joinRoomError.value = null; serverError.value = null })
+watch(step, () => {
+  nameError.value = null
+  createRoomError.value = null
+  joinRoomError.value = null
+  serverError.value = null
+})
+
+// --------------------
+// Derived
+// --------------------
+const activeParticipants = computed(() =>
+  participants.value.filter(p => !p.spectator)
+)
+
+const activeVotesMap = computed(() => {
+  const allowedIds = new Set(activeParticipants.value.map(p => p.id))
+  const filtered: Record<string, string> = {}
+  for (const [id, v] of Object.entries(votes.value || {})) {
+    if (allowedIds.has(id)) filtered[id] = v
+  }
+  return filtered
+})
+
+const voted = computed(() => {
+  const v = activeVotesMap.value
+  return activeParticipants.value.filter(p => p.id in v)
+})
+
+const notVoted = computed(() => {
+  const v = activeVotesMap.value
+  return activeParticipants.value.filter(p => !(p.id in v))
+})
+
+const voteCountText = computed(() =>
+  `${voted.value.length}/${activeParticipants.value.length} voted`
+)
+
+const hasAnyVote = computed(() => Object.keys(activeVotesMap.value || {}).length > 0)
+const canReveal = computed(() => hasAnyVote.value && revealed.value === false)
+const canReset = computed(() => hasAnyVote.value)
+
+const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0)
+
+const cardOptions = computed(() => {
+  return tShirtMode.value
+    ? ['XS', 'S', 'M', 'L', 'XL', '?']
+    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?']
+})
+
+function valueToNumber(v: string): number {
+  const map: Record<string, number> = { XS: 1, S: 2, M: 3, L: 4, XL: 5 }
+  if (map[v] !== undefined) return map[v]
+  const n = Number(v)
+  return Number.isFinite(n) ? n : Number.NaN
+}
+
+const votesForModal = computed(() => {
+  const vmap = activeVotesMap.value
+  const entries = Object.entries(vmap).map(([id, value]) => {
+    const name = participants.value.find(p => p.id === id)?.name || id
+    const num = valueToNumber(value)
+    const isNumeric = Number.isFinite(num)
+    const isCheater = !!cheaters.value[id]
+    return { id, name, value, isNumeric, num, isCheater }
+  })
+
+  entries.sort((a, b) => {
+    if (a.isNumeric && b.isNumeric) return a.num - b.num
+    if (a.isNumeric && !b.isNumeric) return -1
+    if (!a.isNumeric && b.isNumeric) return 1
+    return String(a.value).localeCompare(String(b.value))
+  })
+
+  return entries
+})
+
+const averageInfo = computed(() => {
+  const nums = Object.values(activeVotesMap.value || {})
+    .map(valueToNumber)
+    .filter(n => Number.isFinite(n))
+
+  if (nums.length === 0) return { avgText: 'N/A', count: 0 }
+
+  const sum = nums.reduce((acc, n) => acc + n, 0)
+  const avg = sum / nums.length
+  const avgText = Number.isInteger(avg) ? String(avg) : avg.toFixed(2)
+
+  return { avgText, count: nums.length }
+})
+
+// --------------------
+// Celebration logic (confetti only)
+// --------------------
+const celebrationActive = ref(false)
+let celebrationTimer: number | null = null
+
+function clearCelebration() {
+  celebrationActive.value = false
+  if (celebrationTimer) window.clearTimeout(celebrationTimer)
+  celebrationTimer = null
+}
+
+function triggerCelebration() {
+  if (celebrationActive.value) return
+  celebrationActive.value = true
+  celebrationTimer = window.setTimeout(() => {
+    celebrationActive.value = false
+    celebrationTimer = null
+  }, 1800)
+}
+
+const allVotesSame = computed(() => {
+  const values = votesForModal.value.map(e => e.value)
+  if (values.length === 0) return false
+  return values.every(v => v === values[0])
+})
+
+function areAllFlippedNow(): boolean {
+  const ids = votesForModal.value.map(e => e.id)
+  if (ids.length === 0) return false
+  return ids.every(id => !!flippedMap.value[id])
+}
+
+function shouldCelebrateNow(): boolean {
+  return votesForModal.value.length >= 2 && allVotesSame.value
+}
+
+const confettiColors = [
+  '#facc15', '#fb7185', '#fb923c', '#60a5fa',
+  '#a78bfa', '#f472b6', '#34d399', '#f87171'
+]
+
+const confettiPieces = Array.from({ length: 34 }, (_, i) => ({
+  id: i,
+  left: (i * 7) % 100,
+  delay: (i % 10) * 0.05,
+  dur: 0.9 + (i % 7) * 0.14,
+  rot: (i * 37) % 360,
+  color: confettiColors[i % confettiColors.length]
+}))
+
+// --------------------
+// Votes flip animation (modal)
+// --------------------
+const flippedMap = ref<Record<string, boolean>>({})
+let flipTimers: number[] = []
+
+function clearFlipTimers() {
+  for (const t of flipTimers) window.clearTimeout(t)
+  flipTimers = []
+}
+
+function startFlipSequence() {
+  clearFlipTimers()
+  clearCelebration()
+
+  const next: Record<string, boolean> = {}
+  for (const e of votesForModal.value) next[e.id] = false
+  flippedMap.value = next
+
+  if (votesForModal.value.length < 2) {
+    const immediate: Record<string, boolean> = {}
+    for (const e of votesForModal.value) immediate[e.id] = true
+    flippedMap.value = immediate
+    if (shouldCelebrateNow()) triggerCelebration()
+    return
+  }
+
+  for (const e of votesForModal.value) {
+    const delay = Math.floor(Math.random() * 2001)
+    const timer = window.setTimeout(() => {
+      flippedMap.value = { ...flippedMap.value, [e.id]: true }
+      if (areAllFlippedNow() && shouldCelebrateNow()) {
+        triggerCelebration()
+      }
+    }, delay)
+    flipTimers.push(timer)
+  }
+}
+
+watch(showVotesModal, (open) => {
+  if (open) startFlipSequence()
+  else {
+    clearFlipTimers()
+    clearCelebration()
+  }
+})
+
+// --------------------
+// Socket events
+// --------------------
+socket.on("room-created", (id: string) => {
+  roomId.value = id
+  step.value = 3
+
+  pendingVisibilityFromUrl.value = isPrivate.value ? 'private' : null
+  setUrlToRoom(id, pendingVisibilityFromUrl.value)
+
+  applySpectatorToRoom()
+})
+
+socket.on("users-updated", (users: any[]) => {
+  participants.value = users
+  const me = participants.value.find(p => p.id === socket.id)
+  if (me && typeof me.spectator === 'boolean') {
+    isSpectator.value = !!me.spectator
+  }
+})
+
+socket.on("votes-updated", (v) => { votes.value = v })
+
+socket.on("revealed", () => {
+  revealed.value = true
+  showVotesModal.value = true
+})
+
+socket.on("reset", () => {
+  votes.value = {}
+  revealed.value = false
+  selectedCard.value = null
+  cheaters.value = {}
+  showVotesModal.value = false
+  flippedMap.value = {}
+  clearFlipTimers()
+  clearCelebration()
+})
+
+socket.on("public-rooms-updated", (rooms: PublicRoom[]) => {
+  publicRooms.value = Array.isArray(rooms) ? rooms : []
+})
+
+socket.on("cheaters-updated", (c: Record<string, boolean>) => {
+  cheaters.value = c || {}
+})
+
+socket.on("room-settings-updated", (settings: { autoReveal?: boolean; tShirtMode?: boolean }) => {
+  if (typeof settings?.autoReveal === 'boolean') autoReveal.value = settings.autoReveal
+  if (typeof settings?.tShirtMode === 'boolean') tShirtMode.value = settings.tShirtMode
+})
+
+socket.on("error", (msg: string) => {
+  const text = String(msg || 'Unknown error')
+
+  if (step.value === 1) { nameError.value = text; return }
+  if (/room code already exists/i.test(text)) { createRoomError.value = text; return }
+  if (/room not found/i.test(text)) { joinRoomError.value = text; return }
+
+  serverError.value = text
+})
+
+watch(step, (s) => {
+  if (s === 2) socket.emit("get-public-rooms")
+})
+
+// --------------------
+// Actions
+// --------------------
+const acceptName = () => {
+  const trimmed = userName.value.trim()
+  if (!trimmed) { nameError.value = "Please enter your name"; return }
+
+  try { window.localStorage.setItem(NAME_STORAGE_KEY, trimmed) } catch {}
+
+  if (pendingRoomFromUrl.value) {
+    const id = pendingRoomFromUrl.value.trim()
+    roomId.value = id
+
+    socket.emit("join-or-create-room", {
+      roomId: id,
+      name: trimmed,
+      autoReveal: autoReveal.value,
+      tShirtMode: tShirtMode.value,
+      isPrivate: pendingVisibilityFromUrl.value === 'private',
+      isPublic: pendingVisibilityFromUrl.value === 'public'
+    })
+
+    step.value = 3
+    setUrlToRoom(id, pendingVisibilityFromUrl.value)
+
+    applySpectatorToRoom()
+    return
+  }
+
+  step.value = 2
+  socket.emit("get-public-rooms")
+}
+
+const backFromSessionToName = () => {
+  roomId.value = ''
+  newRoomCode.value = ''
+  step.value = 1
+  pendingRoomFromUrl.value = null
+  pendingVisibilityFromUrl.value = null
+  setUrlHome()
+}
+
+const createRoom = () => {
+  const code = newRoomCode.value.trim()
+  if (!code) { createRoomError.value = "Enter a room code"; return }
+
+  socket.emit("create-room", {
+    roomCode: code,
+    name: userName.value.trim(),
+    isPrivate: isPrivate.value,
+    autoReveal: autoReveal.value,
+    tShirtMode: tShirtMode.value
+  })
+}
+
+const joinRoom = (idOverride?: string) => {
+  const id = (idOverride ?? roomId.value).trim()
+  if (!id) { joinRoomError.value = "Enter room code"; return }
+
+  roomId.value = id
+  socket.emit("join-room", { roomId: id, name: userName.value.trim() })
+  step.value = 3
+  pendingRoomFromUrl.value = id
+
+  pendingVisibilityFromUrl.value = null
+  setUrlToRoom(id, null)
+
+  applySpectatorToRoom()
+}
+
+const setSpectator = () => {
+  if (isSpectator.value) selectedCard.value = null
+  socket.emit("set-spectator", { roomId: roomId.value, spectator: isSpectator.value })
+}
+
+const setAutoReveal = () => {
+  if (!roomId.value) return
+  socket.emit("set-auto-reveal", { roomId: roomId.value, autoReveal: autoReveal.value })
+}
+
+const setTShirtMode = () => {
+  if (!roomId.value) return
+  selectedCard.value = null
+  showVotesModal.value = false
+  socket.emit("set-tshirt-mode", { roomId: roomId.value, tShirtMode: tShirtMode.value })
+}
+
+const voteCard = (value: string) => {
+  if (isSpectator.value) return
+  selectedCard.value = value
+  socket.emit("vote", { roomId: roomId.value, value })
+}
+
+const revealVotes = () => {
+  if (!canReveal.value) return
+  socket.emit("reveal", roomId.value)
+}
+
+const closeVotesModal = () => {
+  applyGoldIfEligibleAfterModalClose()
+  showVotesModal.value = false
+  resetVotes()
+}
+
+const resetVotes = () => {
+  if (!canReset.value) return
+  socket.emit("reset", roomId.value)
+  selectedCard.value = null
+}
+
+const closeSession = () => {
+  const oldRoom = roomId.value
+  if (oldRoom) socket.emit("leave-room", { roomId: oldRoom })
+
+  step.value = 2
+  roomId.value = ''
+  participants.value = []
+  votes.value = {}
+  selectedCard.value = null
+  revealed.value = false
+  showVotesModal.value = false
+  cheaters.value = {}
+  pendingRoomFromUrl.value = null
+  pendingVisibilityFromUrl.value = null
+  flippedMap.value = {}
+  clearFlipTimers()
+  clearCelebration()
+  setUrlHome()
+  socket.emit("get-public-rooms")
+}
+
+// --------------------
+// Clipboard
+// --------------------
+function setCopied(which: 'id' | 'url') {
+  copied.value = true
+  copiedWhat.value = which
+  if (copiedTimer) window.clearTimeout(copiedTimer)
+  copiedTimer = window.setTimeout(() => {
+    copied.value = false
+    copiedWhat.value = null
+    copiedTimer = null
+  }, 1200)
+}
+
+async function copyTextToClipboard(text: string, which: 'id' | 'url') {
+  try {
+    await navigator.clipboard.writeText(text)
+    setCopied(which)
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(which)
+    } catch {
+      serverError.value = "Could not copy to clipboard."
+    }
+  }
+}
+
+const copyId = async () => {
+  if (!roomId.value) return
+  await copyTextToClipboard(roomId.value, 'id')
+}
+
+const copyUrl = async () => {
+  if (!roomId.value) return
+  await copyTextToClipboard(currentRoomUrl(), 'url')
+}
+</script>
+
+<template>
+  <div class="page">
+    <header class="app-header">
+      <h1>Planning Poker</h1>
+    </header>
+
+    <!-- Gold HUD -->
+    <div class="gold-hud" aria-label="Gold">
+      <span class="gold-label">Gold</span>
+      <span class="gold-count">{{ gold }}</span>
+
+      <span
+        v-if="goldDelta !== null"
+        class="gold-delta"
+        :key="goldDelta"
+        aria-hidden="true"
+      >
+        +{{ goldDelta }}
+      </span>
+    </div>
+
+    <div class="container">
+      <div class="content">
+        <!-- STEP 1 -->
+        <div v-if="step === 1" class="stage">
+          <div class="card center-card">
+            <h2>Enter your name</h2>
+            <label class="label">Name</label>
+
+            <form class="stack" @submit.prevent="acceptName">
+              <input v-model="userName" placeholder="Your name" />
+              <div v-if="nameError" class="error-text">{{ nameError }}</div>
+              <button class="btn" type="submit">Continue</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div v-if="step === 2" class="stage">
+          <div class="card center-card">
+            <h2>Session</h2>
+
+            <div class="current-name">
+              <span class="current-name-label">Current name:</span>
+              <span class="current-name-value">{{ userName }}</span>
+            </div>
+
+            <button class="btn btn-ghost back-btn" @click="backFromSessionToName" type="button">
+              ← Back to name
+            </button>
+
+            <div v-if="serverError" class="error-banner">{{ serverError }}</div>
+
+            <!-- Create -->
+            <form class="stack" @submit.prevent="createRoom">
+              <label class="label">Create a room</label>
+              <input v-model="newRoomCode" placeholder="New room code" />
+              <div v-if="createRoomError" class="error-text">{{ createRoomError }}</div>
+
+              <label class="check-row">
+                <input type="checkbox" v-model="isPrivate" />
+                <span>Private</span>
+              </label>
+
+              <button class="btn" type="submit">Create Room</button>
+            </form>
+
+            <div class="divider"></div>
+
+            <!-- Join -->
+            <form class="stack" @submit.prevent="joinRoom()">
+              <label class="label">Join a room</label>
+              <input v-model="roomId" placeholder="Existing room code" />
+              <div v-if="joinRoomError" class="error-text">{{ joinRoomError }}</div>
+              <button class="btn" type="submit">Join Room</button>
+            </form>
+
+            <!-- Public rooms list -->
+            <div class="public-rooms">
+              <div class="public-rooms-title">Available public rooms</div>
+
+              <div v-if="publicRooms.length === 0" class="public-empty">
+                No available public rooms
+              </div>
+
+              <ul v-else class="public-list">
+                <li
+                  v-for="r in publicRooms"
+                  :key="r.roomId"
+                  class="public-item"
+                  @click="joinRoom(r.roomId)"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span class="public-room-id">{{ r.roomId }}</span>
+                  <span class="public-users">{{ r.users }} user{{ r.users === 1 ? '' : 's' }}</span>
+                </li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div v-if="step === 3" class="room-layout">
+          <!-- LEFT PANEL -->
+          <div class="panel panel-left">
+            <div class="room-id-row">
+              <p class="room-id-label"><strong>Room ID:</strong></p>
+              <p class="room-id-value">{{ roomId }}</p>
+            </div>
+
+            <!-- ✅ NO ul/li anymore → no outer bullet; also no manual "•" -->
+            <div class="copy-links" aria-label="Copy options">
+              <button class="link-btn" type="button" @click="copyId">
+                <span v-if="copied && copiedWhat === 'id'" class="link-icon" aria-hidden="true">✓</span>
+                <span>Copy ID</span>
+              </button>
+
+              <button class="link-btn" type="button" @click="copyUrl">
+                <span v-if="copied && copiedWhat === 'url'" class="link-icon" aria-hidden="true">✓</span>
+                <span>Copy URL</span>
+              </button>
+            </div>
+
+            <!-- Auto-reveal -->
+            <label class="spectator-row">
+              <input type="checkbox" v-model="autoReveal" @change="setAutoReveal" />
+              <span>Auto-reveal</span>
+            </label>
+
+            <!-- T-Shirt mode -->
+            <label class="spectator-row">
+              <input type="checkbox" v-model="tShirtMode" @change="setTShirtMode" />
+              <span>T-Shirt mode</span>
+            </label>
+
+            <p><strong>You:</strong> {{ userName }}</p>
+
+            <label class="spectator-row">
+              <input type="checkbox" v-model="isSpectator" @change="setSpectator" />
+              <span>Spectator</span>
+            </label>
+
+            <button class="btn btn-ghost" @click="closeSession" type="button">Leave Room</button>
+          </div>
+
+          <!-- RIGHT PANEL -->
+          <div class="panel panel-right">
+            <h3 class="panel-title">Participants</h3>
+            <ul class="panel-list">
+              <li v-for="p in participants" :key="p.id" class="panel-list-item">
+                <span class="dot" :class="{ spect: !!p.spectator }"></span>
+                <span class="panel-name">{{ p.name }}</span>
+
+                <span v-if="p.spectator" class="badge">SPECTATOR</span>
+                <span v-else-if="cheaters[p.id]" class="badge badge-cheater">CHEATER</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- MIDDLE -->
+          <main class="middle">
+            <div class="card status">
+              <div class="status-row">
+                <div class="status-title">Estimation status</div>
+                <div class="status-count">{{ voteCountText }}</div>
+              </div>
+
+              <div class="status-section">
+                <div class="status-subtitle">Voted</div>
+
+                <div class="status-body">
+                  <div v-if="voted.length === 0" class="status-empty">No votes yet</div>
+                  <div v-else class="chips">
+                    <span v-for="p in voted" :key="p.id" class="chip chip-voted">{{ p.name }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="status-section">
+                <div class="status-subtitle">Waiting for</div>
+
+                <div class="status-body">
+                  <div v-if="everyoneIsSpectator" class="status-empty status-hint">
+                    Everyone is a spectator (no votes will be counted).
+                  </div>
+
+                  <div v-else-if="notVoted.length === 0" class="status-empty status-ok">
+                    Everyone voted
+                  </div>
+
+                  <div v-else class="chips">
+                    <span v-for="p in notVoted" :key="p.id" class="chip chip-waiting">{{ p.name }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <h2 class="section-title">Pick a card</h2>
+
+            <div class="cards">
+              <button
+                v-for="c in cardOptions"
+                :key="c"
+                class="card-btn"
+                :class="{ selected: selectedCard === c }"
+                :disabled="isSpectator"
+                @click="voteCard(c)"
+                type="button"
+              >
+                {{ c }}
+              </button>
+            </div>
+
+            <div class="buttons">
+              <button class="btn" @click="revealVotes" type="button" :disabled="!canReveal">
+                Reveal Votes
+              </button>
+              <button class="btn btn-ghost" @click="resetVotes" type="button" :disabled="!canReset">
+                Reset
+              </button>
+            </div>
+
+            <!-- MODAL: Votes -->
+            <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
+              <div v-if="celebrationActive" class="celebration" aria-hidden="true">
+                <div class="confetti">
+                  <span
+                    v-for="p in confettiPieces"
+                    :key="p.id"
+                    class="confetti-piece"
+                    :style="{
+                      left: p.left + '%',
+                      animationDelay: p.delay + 's',
+                      animationDuration: p.dur + 's',
+                      transform: `rotate(${p.rot}deg)`,
+                      backgroundColor: p.color
+                    }"
+                  />
+                </div>
+              </div>
+
+              <div class="modal">
+                <div class="card votes-card">
+                  <div class="modal-header">
+                    <h3 class="modal-title">Votes</h3>
+                  </div>
+
+                  <div class="vote-cards" aria-label="Votes revealed">
+                    <div
+                      v-for="entry in votesForModal"
+                      :key="entry.id"
+                      class="vote-card-wrap"
+                    >
+                      <div class="vote-card-3d">
+                        <div class="vote-card-inner" :class="{ flipped: !!flippedMap[entry.id] }">
+                          <div class="vote-card-face vote-card-back" aria-hidden="true"></div>
+                          <div class="vote-card-face vote-card-front">
+                            <div class="vote-card-value">{{ entry.value }}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="vote-card-name">
+                        <span class="vote-card-name-text">{{ entry.name }}</span>
+                        <span v-if="entry.isCheater" class="inline-cheater">CHEATER</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="avg-center">
+                    <span class="avg-symbol">Ø</span>
+                    <span class="avg-number">{{ averageInfo.avgText }}</span>
+                  </div>
+
+                  <div class="modal-footer">
+                    <button class="btn" type="button" @click="closeVotesModal">
+                      Close
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+          </main>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</template>
