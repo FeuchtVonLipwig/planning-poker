@@ -591,13 +591,20 @@ input::placeholder { color: #9aa3b2; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+
+  /* ✅ MORE breathing room around the modal */
+  padding: 2rem;
+
   z-index: 2000; /* above panels (1000) */
 }
 
 /* ✅ shrink-wrap modal to content, but never exceed viewport */
 .modal {
   width: fit-content;
+
+  /* ✅ min width so it doesn't look tiny with few voters */
+  min-width: 450px;
+
   max-width: 92vw;
   max-height: 90vh;
   overflow: auto;
@@ -654,13 +661,19 @@ input::placeholder { color: #9aa3b2; }
     width: min(92vw, 980px);
   }
 
-  /* Modal still fits nicely on small screens */
+  /* ✅ On small screens we must not force min-width 450 */
   .modal {
     width: 92vw;
     max-width: 92vw;
+    min-width: 0;
   }
 
   .vote-card-wrap {
     width: 110px;
+  }
+
+  /* ✅ keep nice margin even on mobile */
+  .modal-backdrop {
+    padding: 1.25rem;
   }
 }
