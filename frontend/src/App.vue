@@ -53,6 +53,17 @@ const SPECTATOR_STORAGE_KEY = 'planning_poker_spectator'
 const AUTO_REVEAL_STORAGE_KEY = 'planning_poker_auto_reveal'
 const TSHIRT_MODE_STORAGE_KEY = 'planning_poker_tshirt_mode'
 
+// ✅ Gold storage
+const GOLD_STORAGE_KEY = 'planning_poker_gold'
+const gold = ref<number>(0)
+const goldDelta = ref<number | null>(null)
+let goldDeltaTimer: number | null = null
+
+function safeParseInt(v: string | null, fallback = 0) {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback
+}
+
 // --------------------
 // URL helpers
 // --------------------
@@ -136,6 +147,13 @@ onMounted(() => {
     if (savedTs !== null) tShirtMode.value = savedTs === 'true'
   } catch {}
 
+  // ✅ Load gold
+  try {
+    gold.value = safeParseInt(window.localStorage.getItem(GOLD_STORAGE_KEY), 0)
+  } catch {
+    gold.value = 0
+  }
+
   const rid = getRoomIdFromUrl()
   pendingVisibilityFromUrl.value = getVisibilityFromUrl()
 
@@ -167,6 +185,13 @@ watch(autoReveal, (val) => {
 watch(tShirtMode, (val) => {
   try {
     window.localStorage.setItem(TSHIRT_MODE_STORAGE_KEY, String(!!val))
+  } catch {}
+})
+
+// ✅ Persist gold
+watch(gold, (val) => {
+  try {
+    window.localStorage.setItem(GOLD_STORAGE_KEY, String(Math.max(0, Math.floor(val))))
   } catch {}
 })
 
@@ -270,6 +295,45 @@ const averageInfo = computed(() => {
 })
 
 // --------------------
+// Gold reward logic (applies ONLY when modal closes)
+// --------------------
+function showGoldDelta(amount: number) {
+  if (amount <= 0) return
+  goldDelta.value = amount
+  if (goldDeltaTimer) window.clearTimeout(goldDeltaTimer)
+  goldDeltaTimer = window.setTimeout(() => {
+    goldDelta.value = null
+    goldDeltaTimer = null
+  }, 1200)
+}
+
+function computeGoldRewardForThisReveal(): number {
+  // You said: if you vote as the only person -> no gold
+  if (votesForModal.value.length < 2) return 0
+
+  // spectators get no gold
+  if (isSpectator.value) return 0
+
+  // find my revealed vote in this modal
+  const mine = votesForModal.value.find(e => e.id === socket.id)
+  if (!mine) return 0
+
+  const myValue = mine.value
+  const sameCount = votesForModal.value.filter(e => e.value === myValue).length
+
+  if (sameCount === 1) return 50
+  return sameCount * 100
+}
+
+function applyGoldAfterModalClose() {
+  const reward = computeGoldRewardForThisReveal()
+  if (reward <= 0) return
+
+  gold.value = gold.value + reward
+  showGoldDelta(reward)
+}
+
+// --------------------
 // Celebration logic (confetti only)
 // --------------------
 const celebrationActive = ref(false)
@@ -367,6 +431,7 @@ function startFlipSequence() {
 onBeforeUnmount(() => {
   clearFlipTimers()
   clearCelebration()
+  if (goldDeltaTimer) window.clearTimeout(goldDeltaTimer)
 })
 
 watch(showVotesModal, (open) => {
@@ -542,6 +607,9 @@ const revealVotes = () => {
 }
 
 const closeVotesModal = () => {
+  // ✅ Apply gold here (after modal closes)
+  applyGoldAfterModalClose()
+
   showVotesModal.value = false
   resetVotes()
 }
@@ -624,6 +692,21 @@ const copyUrl = async () => {
     <header class="app-header">
       <h1>Planning Poker</h1>
     </header>
+
+    <!-- ✅ Gold HUD (always bottom-right) -->
+    <div class="gold-hud" aria-label="Gold">
+      <span class="gold-label">Gold</span>
+      <span class="gold-count">{{ gold }}</span>
+
+      <span
+        v-if="goldDelta !== null"
+        class="gold-delta"
+        :key="goldDelta"
+        aria-hidden="true"
+      >
+        +{{ goldDelta }}
+      </span>
+    </div>
 
     <div class="container">
       <div class="content">

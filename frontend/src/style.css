@@ -700,3 +700,45 @@ input::placeholder { color: #9aa3b2; }
     padding: 1.25rem;
   }
 }
+
+/* --------------------
+   GOLD HUD (added)
+-------------------- */
+.gold-hud {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2600;
+
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(42,49,66,0.9);
+  background: rgba(15,17,21,0.65);
+  backdrop-filter: blur(6px);
+
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+}
+
+.gold-label { font-weight: 900; color: #f5f7ff; }
+.gold-count { font-weight: 900; color: #facc15; }
+
+.gold-delta {
+  position: absolute;
+  right: 10px;
+  bottom: 42px;
+  font-weight: 900;
+  color: #a7f3d0;
+  opacity: 0;
+  animation: gold-float 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes gold-float {
+  0%   { transform: translateY(8px); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translateY(-18px); opacity: 0; }
+}
