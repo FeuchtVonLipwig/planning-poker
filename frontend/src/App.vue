@@ -302,6 +302,33 @@ function areAllFlippedNow(): boolean {
   return ids.every(id => !!flippedMap.value[id])
 }
 
+// Celebration requires at least 2 participants/votes in modal
+function shouldCelebrateNow(): boolean {
+  return votesForModal.value.length >= 2 && allVotesSame.value
+}
+
+// Confetti colors
+const confettiColors = [
+  '#facc15', // yellow
+  '#fb7185', // pink
+  '#fb923c', // orange
+  '#60a5fa', // blue
+  '#a78bfa', // purple
+  '#f472b6', // pink (alt)
+  '#34d399', // green
+  '#f87171'  // red
+]
+
+// Simple, deterministic confetti layout
+const confettiPieces = Array.from({ length: 34 }, (_, i) => ({
+  id: i,
+  left: (i * 7) % 100,            // 0..99%
+  delay: (i % 10) * 0.05,         // 0..0.45s
+  dur: 0.9 + (i % 7) * 0.14,      // ~0.9..1.74s
+  rot: (i * 37) % 360,
+  color: confettiColors[i % confettiColors.length]
+}))
+
 // --------------------
 // Votes flip animation (modal)
 // --------------------
@@ -328,8 +355,8 @@ function startFlipSequence() {
     const timer = window.setTimeout(() => {
       flippedMap.value = { ...flippedMap.value, [e.id]: true }
 
-      // If this was the last flip AND everyone voted the same → celebrate
-      if (areAllFlippedNow() && allVotesSame.value) {
+      // If this was the last flip AND everyone voted the same (and >=2) → celebrate
+      if (areAllFlippedNow() && shouldCelebrateNow()) {
         triggerCelebration()
       }
     }, delay)
@@ -349,15 +376,6 @@ watch(showVotesModal, (open) => {
     clearCelebration()
   }
 })
-
-// Simple, deterministic confetti layout
-const confettiPieces = Array.from({ length: 26 }, (_, i) => ({
-  id: i,
-  left: (i * 7) % 100,            // 0..99%
-  delay: (i % 8) * 0.06,          // 0..0.42s
-  dur: 0.9 + (i % 6) * 0.15,      // ~0.9..1.65s
-  rot: (i * 37) % 360
-}))
 
 // --------------------
 // Socket events
@@ -816,7 +834,7 @@ const copyUrl = async () => {
 
             <!-- MODAL: Votes -->
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
-              <!-- Celebration overlay (after all flips & all same) -->
+              <!-- Celebration overlay (after all flips & all same & >=2) -->
               <div v-if="celebrationActive" class="celebration" aria-hidden="true">
                 <div class="confetti">
                   <span
@@ -827,7 +845,8 @@ const copyUrl = async () => {
                       left: p.left + '%',
                       animationDelay: p.delay + 's',
                       animationDuration: p.dur + 's',
-                      transform: `rotate(${p.rot}deg)`
+                      transform: `rotate(${p.rot}deg)`,
+                      backgroundColor: p.color
                     }"
                   />
                 </div>
@@ -863,7 +882,6 @@ const copyUrl = async () => {
                     </div>
                   </div>
 
-                  <!-- renamed from avg-right -> avg-center -->
                   <div class="avg-center">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>

@@ -506,12 +506,12 @@ input::placeholder { color: #9aa3b2; }
   max-width: 120px;
 }
 
-/* ✅ Renamed + centered average */
+/* ✅ Centered average */
 .avg-center {
   margin-top: 0.9rem;
   width: 100%;
   display: flex;
-  justify-content: center; /* center */
+  justify-content: center;
   align-items: baseline;
   gap: 0.6rem;
 }
@@ -600,7 +600,7 @@ input::placeholder { color: #9aa3b2; }
   background: transparent;
 }
 
-/* Modal header inside votes modal (no divider line now) */
+/* Modal header inside votes modal */
 .modal-header {
   width: 100%;
   margin-bottom: 0.75rem;
@@ -659,7 +659,10 @@ input::placeholder { color: #9aa3b2; }
   width: 10px;
   height: 16px;
   border-radius: 3px;
-  background: rgba(245, 247, 255, 0.85);
+
+  /* color is set inline per piece */
+  background: #fff;
+
   box-shadow: 0 8px 18px rgba(0,0,0,0.25);
   animation-name: confetti-fall;
   animation-timing-function: ease-in;
