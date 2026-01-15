@@ -512,7 +512,7 @@ socket.on("gold-awarded", (payload: { roundKey: number; awards: Record<string, n
   const roundKey = Number(payload?.roundKey || 0)
   const awards = payload?.awards || {}
 
-  const my = awards[socket.id] || 0
+  const my = getMyAward(awards)
   if (my > 0 && roundKey > 0) {
     pendingGold.value = my
     pendingGoldRound.value = roundKey
@@ -523,6 +523,11 @@ socket.on("gold-awarded", (payload: { roundKey: number; awards: Record<string, n
     }
   }
 })
+
+function getMyAward(awards: Record<string, number>) {
+  const id = socket.id
+  return id ? (awards[id] || 0) : 0
+}
 
 socket.on("error", (msg: string) => {
   const text = String(msg || 'Unknown error')
