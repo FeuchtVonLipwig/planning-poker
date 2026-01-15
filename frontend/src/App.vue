@@ -270,7 +270,7 @@ const averageInfo = computed(() => {
 })
 
 // --------------------
-// Celebration logic
+// Celebration logic (confetti only)
 // --------------------
 const celebrationActive = ref(false)
 let celebrationTimer: number | null = null
@@ -355,7 +355,7 @@ function startFlipSequence() {
     const timer = window.setTimeout(() => {
       flippedMap.value = { ...flippedMap.value, [e.id]: true }
 
-      // If this was the last flip AND everyone voted the same (and >=2) → celebrate
+      // If this was the last flip AND everyone voted the same (and >=2) → confetti
       if (areAllFlippedNow() && shouldCelebrateNow()) {
         triggerCelebration()
       }
@@ -834,7 +834,7 @@ const copyUrl = async () => {
 
             <!-- MODAL: Votes -->
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
-              <!-- Celebration overlay (after all flips & all same & >=2) -->
+              <!-- Confetti overlay only -->
               <div v-if="celebrationActive" class="celebration" aria-hidden="true">
                 <div class="confetti">
                   <span
@@ -850,7 +850,6 @@ const copyUrl = async () => {
                     }"
                   />
                 </div>
-                <div class="celebration-burst">🎉</div>
               </div>
 
               <div class="modal">
