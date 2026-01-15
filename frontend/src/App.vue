@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { socket } from './socket'
 
 // --------------------
@@ -220,7 +220,7 @@ const everyoneIsSpectator = computed(() => activeParticipants.value.length === 0
 const cardOptions = computed(() => {
   return tShirtMode.value
     ? ['XS', 'S', 'M', 'L', 'XL', '?']
-    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?']
+    : ['0', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?', '☕']
 })
 
 function valueToNumber(v: string): number {
@@ -230,7 +230,12 @@ function valueToNumber(v: string): number {
   return Number.isFinite(n) ? n : Number.NaN
 }
 
-const sortedVotes = computed(() => {
+/**
+ * ✅ Modal display order: LOW → HIGH left-to-right
+ * - numeric values: ascending
+ * - non-numeric values (e.g. ?, ☕): at the end, alphabetical
+ */
+const votesForModal = computed(() => {
   const vmap = activeVotesMap.value
   const entries = Object.entries(vmap).map(([id, value]) => {
     const name = participants.value.find(p => p.id === id)?.name || id
@@ -241,7 +246,7 @@ const sortedVotes = computed(() => {
   })
 
   entries.sort((a, b) => {
-    if (a.isNumeric && b.isNumeric) return b.num - a.num
+    if (a.isNumeric && b.isNumeric) return a.num - b.num // LOW -> HIGH
     if (a.isNumeric && !b.isNumeric) return -1
     if (!a.isNumeric && b.isNumeric) return 1
     return String(a.value).localeCompare(String(b.value))
@@ -262,6 +267,44 @@ const averageInfo = computed(() => {
   const avgText = Number.isInteger(avg) ? String(avg) : avg.toFixed(2)
 
   return { avgText, count: nums.length }
+})
+
+// --------------------
+// Votes flip animation (modal)
+// --------------------
+const flippedMap = ref<Record<string, boolean>>({})
+let flipTimers: number[] = []
+
+function clearFlipTimers() {
+  for (const t of flipTimers) window.clearTimeout(t)
+  flipTimers = []
+}
+
+function startFlipSequence() {
+  clearFlipTimers()
+
+  // Start: all concealed
+  const next: Record<string, boolean> = {}
+  for (const e of votesForModal.value) next[e.id] = false
+  flippedMap.value = next
+
+  // Flip each with random delay 0..2000ms
+  for (const e of votesForModal.value) {
+    const delay = Math.floor(Math.random() * 2001)
+    const timer = window.setTimeout(() => {
+      flippedMap.value = { ...flippedMap.value, [e.id]: true }
+    }, delay)
+    flipTimers.push(timer)
+  }
+}
+
+onBeforeUnmount(() => {
+  clearFlipTimers()
+})
+
+watch(showVotesModal, (open) => {
+  if (open) startFlipSequence()
+  else clearFlipTimers()
 })
 
 // --------------------
@@ -298,6 +341,8 @@ socket.on("reset", () => {
   selectedCard.value = null
   cheaters.value = {}
   showVotesModal.value = false
+  flippedMap.value = {}
+  clearFlipTimers()
 })
 
 socket.on("public-rooms-updated", (rooms: PublicRoom[]) => {
@@ -454,6 +499,8 @@ const closeSession = () => {
   cheaters.value = {}
   pendingRoomFromUrl.value = null
   pendingVisibilityFromUrl.value = null
+  flippedMap.value = {}
+  clearFlipTimers()
   setUrlHome()
   socket.emit("get-public-rooms")
 }
@@ -674,7 +721,6 @@ const copyUrl = async () => {
                 </div>
               </div>
 
-              <!-- ✅ FIXED: spectator hint now uses the reserved body (no extra gap) -->
               <div class="status-section">
                 <div class="status-subtitle">Waiting for</div>
 
@@ -727,15 +773,31 @@ const copyUrl = async () => {
                     <h3 class="modal-title">Votes</h3>
                   </div>
 
-                  <ul class="vote-list">
-                    <li v-for="entry in sortedVotes" :key="entry.id" class="vote-row">
-                      <span class="vote-name">
-                        {{ entry.name }}
+                  <!-- ✅ NEW: cards left-to-right, lowest -> highest -->
+                  <div class="vote-cards" aria-label="Votes revealed">
+                    <div
+                      v-for="entry in votesForModal"
+                      :key="entry.id"
+                      class="vote-card-wrap"
+                    >
+                      <div class="vote-card-3d">
+                        <div class="vote-card-inner" :class="{ flipped: !!flippedMap[entry.id] }">
+                          <!-- Back (concealed) -->
+                          <div class="vote-card-face vote-card-back" aria-hidden="true"></div>
+
+                          <!-- Front (revealed) -->
+                          <div class="vote-card-face vote-card-front">
+                            <div class="vote-card-value">{{ entry.value }}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="vote-card-name">
+                        <span class="vote-card-name-text">{{ entry.name }}</span>
                         <span v-if="entry.isCheater" class="inline-cheater">CHEATER</span>
-                      </span>
-                      <span class="vote-value">{{ entry.value }}</span>
-                    </li>
-                  </ul>
+                      </div>
+                    </div>
+                  </div>
 
                   <div class="avg-right">
                     <span class="avg-symbol">Ø</span>
