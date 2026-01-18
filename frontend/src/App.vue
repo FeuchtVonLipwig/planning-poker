@@ -32,10 +32,6 @@ const tShirtMode = ref(false)
 // Cheaters (current reveal round)
 const cheaters = ref<Record<string, boolean>>({})
 
-// Copy feedback
-const copied = ref(false)
-const copiedWhat = ref<'id' | 'url' | null>(null)
-let copiedTimer: number | null = null
 
 // --------------------
 // Inline Errors
@@ -102,12 +98,6 @@ function setUrlHome() {
   }
 }
 
-function currentRoomUrl(): string {
-  const base = `${window.location.origin}/room/${encodeURIComponent(roomId.value)}`
-  if (pendingVisibilityFromUrl.value === 'private') return `${base}?private=true`
-  if (pendingVisibilityFromUrl.value === 'public') return `${base}?public=true`
-  return base
-}
 
 function applySpectatorToRoom() {
   if (!roomId.value) return
@@ -573,50 +563,6 @@ const closeSession = () => {
   socket.emit("get-public-rooms")
 }
 
-// --------------------
-// Clipboard
-// --------------------
-function setCopied(which: 'id' | 'url') {
-  copied.value = true
-  copiedWhat.value = which
-  if (copiedTimer) window.clearTimeout(copiedTimer)
-  copiedTimer = window.setTimeout(() => {
-    copied.value = false
-    copiedWhat.value = null
-    copiedTimer = null
-  }, 1200)
-}
-
-async function copyTextToClipboard(text: string, which: 'id' | 'url') {
-  try {
-    await navigator.clipboard.writeText(text)
-    setCopied(which)
-  } catch {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.left = '-9999px'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-      setCopied(which)
-    } catch {
-      serverError.value = "Could not copy to clipboard."
-    }
-  }
-}
-
-const copyId = async () => {
-  if (!roomId.value) return
-  await copyTextToClipboard(roomId.value, 'id')
-}
-
-const copyUrl = async () => {
-  if (!roomId.value) return
-  await copyTextToClipboard(currentRoomUrl(), 'url')
-}
 </script>
 
 <template>
@@ -716,22 +662,6 @@ const copyUrl = async () => {
               <p class="room-id-value">{{ roomId }}</p>
             </div>
 
-            <ul class="copy-links" aria-label="Copy options">
-              <li>
-                <button class="link-btn" type="button" @click="copyId">
-                  <span v-if="copied && copiedWhat === 'id'">✓</span>
-                  <span v-else>•</span>
-                  Copy ID
-                </button>
-              </li>
-              <li>
-                <button class="link-btn" type="button" @click="copyUrl">
-                  <span v-if="copied && copiedWhat === 'url'">✓</span>
-                  <span v-else>•</span>
-                  Copy URL
-                </button>
-              </li>
-            </ul>
 
             <!-- Auto-reveal -->
             <label class="spectator-row">

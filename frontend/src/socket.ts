@@ -4,18 +4,14 @@ import { io } from "socket.io-client";
 /**
  * Socket.IO connection
  *
- * - In production (Render): connects to the same origin as the page
- * - In local dev:
- *   - Vite proxy or same-origin setup → also works
- *   - If backend runs separately on :3000, uncomment the DEV override below
+ * - In production: connects to the same origin as the page
+ * - In local dev (Vite on :5173): connects to backend on :3000
  */
 
-// DEV override (only if needed locally)
-// const socketUrl = "http://localhost:3000";
-
-const socketUrl = window.location.origin;
+const isDevServer = import.meta.env.DEV && window.location.port === "5173";
+const socketUrl = isDevServer ? "http://localhost:3000" : window.location.origin;
 
 export const socket = io(socketUrl, {
-  transports: ["websocket", "polling"], // websocket first, polling fallback
+  transports: ["websocket", "polling"],
   withCredentials: true,
 });
