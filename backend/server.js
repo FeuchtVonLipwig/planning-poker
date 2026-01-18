@@ -349,12 +349,12 @@ app.use(express.static(distPath, {
 
 // 2) IMPORTANT: if an /assets/* file is missing, return 404.
 //    This prevents Express from serving index.html (HTML) for a JS module request.
-app.get("/assets/*", (_req, res) => {
+app.get("/assets/*path", (_req, res) => {
   res.status(404).end();
 });
 
 // 3) SPA fallback for real app routes
-app.get("*", (_req, res) => {
+app.get("*path", (_req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
