@@ -386,6 +386,17 @@ socket.on("users-updated", (users: any[]) => {
   if (me && typeof me.spectator === 'boolean') {
     isSpectator.value = !!me.spectator
   }
+
+  // Handle successful join-room: transition to step 3
+  if (pendingJoinRoomId.value && me) {
+    const id = pendingJoinRoomId.value
+    pendingJoinRoomId.value = null
+    step.value = 3
+    pendingRoomFromUrl.value = id
+    pendingVisibilityFromUrl.value = null
+    setUrlToRoom(id, null)
+    applySpectatorToRoom()
+  }
 })
 
 socket.on("votes-updated", (v) => { votes.value = v })
@@ -424,7 +435,12 @@ socket.on("error", (msg: string) => {
 
   if (step.value === 1) { nameError.value = text; return }
   if (/room code already exists/i.test(text)) { createRoomError.value = text; return }
-  if (/room not found/i.test(text)) { joinRoomError.value = text; return }
+  if (/room not found/i.test(text)) {
+    // Clear pending join on room not found error
+    pendingJoinRoomId.value = null
+    joinRoomError.value = text
+    return
+  }
 
   serverError.value = text
 })
@@ -488,19 +504,17 @@ const createRoom = () => {
   })
 }
 
+// Track pending join to handle server response
+const pendingJoinRoomId = ref<string | null>(null)
+
 const joinRoom = (idOverride?: string) => {
   const id = (idOverride ?? roomId.value).trim()
   if (!id) { joinRoomError.value = "Enter room code"; return }
 
   roomId.value = id
+  pendingJoinRoomId.value = id
   socket.emit("join-room", { roomId: id, name: userName.value.trim() })
-  step.value = 3
-  pendingRoomFromUrl.value = id
-
-  pendingVisibilityFromUrl.value = null
-  setUrlToRoom(id, null)
-
-  applySpectatorToRoom()
+  // Don't transition to step 3 here - wait for server response
 }
 
 const setSpectator = () => {
