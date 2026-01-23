@@ -55,10 +55,10 @@ function generateRevealOrder(room) {
     const j = Math.floor(Math.random() * (i + 1));
     [voterIds[i], voterIds[j]] = [voterIds[j], voterIds[i]];
   }
-  // Assign sequential delays (0ms, 200ms, 400ms, etc.) for smooth staggered reveal
+  // First card at 500ms, then 300ms between each
   return voterIds.map((id, index) => ({
     id,
-    delay: index * 200 + Math.floor(Math.random() * 100) // staggered with small random variance
+    delay: 500 + index * 300
   }));
 }
 

@@ -374,6 +374,18 @@ watch(showVotesModal, (open) => {
   }
 })
 
+// Watch for new voters (cheaters) while modal is open - flip them immediately
+watch(votesForModal, (entries) => {
+  if (!showVotesModal.value) return
+
+  for (const entry of entries) {
+    if (flippedMap.value[entry.id] === undefined) {
+      // New voter appeared after flip sequence started - flip immediately
+      flippedMap.value = { ...flippedMap.value, [entry.id]: true }
+    }
+  }
+})
+
 // --------------------
 // Socket events
 // --------------------
@@ -787,6 +799,7 @@ const closeSession = () => {
             </div>
 
             <!-- MODAL: Votes -->
+            <Transition name="modal">
             <div v-if="showVotesModal" class="modal-backdrop" @click.self="closeVotesModal">
               <!-- Confetti overlay only -->
               <div v-if="celebrationActive" class="celebration" aria-hidden="true">
@@ -849,6 +862,7 @@ const closeSession = () => {
                 </div>
               </div>
             </div>
+            </Transition>
 
           </main>
         </div>
