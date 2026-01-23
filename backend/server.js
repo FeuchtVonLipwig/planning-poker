@@ -47,6 +47,21 @@ function emitCheaters(roomId) {
   io.to(roomId).emit("cheaters-updated", rooms[roomId].cheaters || {});
 }
 
+// Generate reveal order with random delays for synchronized card flips
+function generateRevealOrder(room) {
+  const voterIds = Object.keys(room.votes || {});
+  // Shuffle array using Fisher-Yates
+  for (let i = voterIds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [voterIds[i], voterIds[j]] = [voterIds[j], voterIds[i]];
+  }
+  // Assign sequential delays (0ms, 200ms, 400ms, etc.) for smooth staggered reveal
+  return voterIds.map((id, index) => ({
+    id,
+    delay: index * 200 + Math.floor(Math.random() * 100) // staggered with small random variance
+  }));
+}
+
 // auto-reveal helper (server-side, consistent for everyone)
 function maybeAutoReveal(roomId) {
   const room = rooms[roomId];
@@ -65,7 +80,8 @@ function maybeAutoReveal(roomId) {
   room.revealed = true;
   room.cheaters = {}; // new reveal round
 
-  io.to(roomId).emit("revealed");
+  const revealOrder = generateRevealOrder(room);
+  io.to(roomId).emit("revealed", { revealOrder });
   emitCheaters(roomId);
 }
 
@@ -251,11 +267,12 @@ io.on("connection", (socket) => {
   // --- Reveal Votes ---
   socket.on("reveal", (roomId) => {
     if (!rooms[roomId]) return;
-    rooms[roomId].revealed = true;
+    const room = rooms[roomId];
+    room.revealed = true;
+    room.cheaters = {};
 
-    rooms[roomId].cheaters = {};
-
-    io.to(roomId).emit("revealed");
+    const revealOrder = generateRevealOrder(room);
+    io.to(roomId).emit("revealed", { revealOrder });
     emitCheaters(roomId);
   });
 

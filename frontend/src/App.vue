@@ -325,6 +325,10 @@ const confettiPieces = Array.from({ length: 34 }, (_, i) => ({
 const flippedMap = ref<Record<string, boolean>>({})
 let flipTimers: number[] = []
 
+// Server-provided reveal order for synchronized flips
+type RevealOrderEntry = { id: string; delay: number }
+const serverRevealOrder = ref<RevealOrderEntry[]>([])
+
 function clearFlipTimers() {
   for (const t of flipTimers) window.clearTimeout(t)
   flipTimers = []
@@ -339,9 +343,12 @@ function startFlipSequence() {
   for (const e of votesForModal.value) next[e.id] = false
   flippedMap.value = next
 
-  // Flip each with random delay 0..2000ms
+  // Use server-provided reveal order if available, otherwise fall back to local random
+  const orderMap = new Map(serverRevealOrder.value.map(e => [e.id, e.delay]))
+
   for (const e of votesForModal.value) {
-    const delay = Math.floor(Math.random() * 2001)
+    // Use server delay if available, otherwise generate local random delay
+    const delay = orderMap.has(e.id) ? orderMap.get(e.id)! : Math.floor(Math.random() * 2001)
     const timer = window.setTimeout(() => {
       flippedMap.value = { ...flippedMap.value, [e.id]: true }
 
@@ -401,8 +408,9 @@ socket.on("users-updated", (users: any[]) => {
 
 socket.on("votes-updated", (v) => { votes.value = v })
 
-socket.on("revealed", () => {
+socket.on("revealed", (data?: { revealOrder?: RevealOrderEntry[] }) => {
   revealed.value = true
+  serverRevealOrder.value = data?.revealOrder || []
   showVotesModal.value = true
 })
 
@@ -413,6 +421,7 @@ socket.on("reset", () => {
   cheaters.value = {}
   showVotesModal.value = false
   flippedMap.value = {}
+  serverRevealOrder.value = []
   clearFlipTimers()
   clearCelebration()
 })
@@ -571,6 +580,7 @@ const closeSession = () => {
   pendingRoomFromUrl.value = null
   pendingVisibilityFromUrl.value = null
   flippedMap.value = {}
+  serverRevealOrder.value = []
   clearFlipTimers()
   clearCelebration()
   setUrlHome()
