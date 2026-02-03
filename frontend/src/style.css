@@ -514,6 +514,11 @@ input::placeholder { color: #9aa3b2; }
   justify-content: center;
   align-items: baseline;
   gap: 0.6rem;
+  opacity: 0;
+  transition: opacity 0.6s ease-out;
+}
+.avg-center.avg-visible {
+  opacity: 1;
 }
 .avg-symbol {
   color: #cbd3e6;

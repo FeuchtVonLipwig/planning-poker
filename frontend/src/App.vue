@@ -286,6 +286,12 @@ const allVotesSame = computed(() => {
   return values.every(v => v === values[0])
 })
 
+const allCardsFlipped = computed(() => {
+  const ids = votesForModal.value.map(e => e.id)
+  if (ids.length === 0) return false
+  return ids.every(id => !!flippedMap.value[id])
+})
+
 function areAllFlippedNow(): boolean {
   const ids = votesForModal.value.map(e => e.id)
   if (ids.length === 0) return false
@@ -848,7 +854,7 @@ const closeSession = () => {
                     </div>
                   </div>
 
-                  <div class="avg-center">
+                  <div class="avg-center" :class="{ 'avg-visible': allCardsFlipped }">
                     <span class="avg-symbol">Ø</span>
                     <span class="avg-number">{{ averageInfo.avgText }}</span>
                   </div>
